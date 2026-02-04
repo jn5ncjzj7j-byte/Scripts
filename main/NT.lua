@@ -17,7 +17,7 @@ local function styleElement(obj, radius)
     corner.Parent = obj
 end
 
--- ESP LOGIC
+-- ESP LOGIC (Updated to show real name)
 local selectedPlayers = {} 
 local espActive = true
 
@@ -50,7 +50,7 @@ local function applyESP(player)
 
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "ESPNameTag"
-        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.Size = UDim2.new(0, 180, 0, 40) -- Slightly larger for dual names
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
         billboard.Enabled = espActive
@@ -59,10 +59,15 @@ local function applyESP(player)
         local label = Instance.new("TextLabel", billboard)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
-        label.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+        -- UPDATED: Shows Display Name and @Username
+        label.Text = player.DisplayName .. "\n(@" .. player.Name .. ")"
         label.TextColor3 = Color3.new(1, 1, 1)
         label.Font = Enum.Font.GothamBold
-        label.TextSize = 14
+        label.TextScaled = true 
+        
+        local tagPadding = Instance.new("UIPadding", label)
+        tagPadding.PaddingTop = UDim.new(0, 2)
+        tagPadding.PaddingBottom = UDim.new(0, 2)
     end
     if player.Character then setupCharacter(player.Character) end
     player.CharacterAdded:Connect(setupCharacter)
@@ -73,7 +78,7 @@ local gui = Instance.new("ScreenGui", PlayerGui)
 gui.Name = "SizeEditorGUI"
 gui.ResetOnSpawn = false
 
--- DRAGGABLE TOGGLE BAR
+-- TOGGLE BAR
 local toggleBar = Instance.new("Frame", gui)
 toggleBar.Size = UDim2.new(0, 210, 0, 45)
 toggleBar.Position = UDim2.new(1, -230, 1, -70)
@@ -121,7 +126,7 @@ minBtn.TextColor3 = Color3.new(1, 1, 1)
 minBtn.Font = Enum.Font.GothamBold
 styleElement(minBtn, 14)
 
--- DRAGGING
+-- DRAGGING LOGIC
 local function makeDraggable(obj)
     local dragging, dragInput, dragStart, startPos
     obj.InputBegan:Connect(function(input)
@@ -148,32 +153,44 @@ makeDraggable(frame)
 makeDraggable(toggleBar)
 
 -- ID DISPLAY
-local sizeIdLabel = Instance.new("TextBox", frame)
+local sizeIdLabel = Instance.new("TextLabel", frame)
 sizeIdLabel.Size = UDim2.new(1, -20, 0, 40)
 sizeIdLabel.Position = UDim2.new(0, 10, 0, 50)
 sizeIdLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 sizeIdLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
 sizeIdLabel.Text = "WAITING FOR ID..."
-sizeIdLabel.ClearTextOnFocus = false
+sizeIdLabel.Font = Enum.Font.Code
+sizeIdLabel.TextScaled = true 
 styleElement(sizeIdLabel, 8)
+local idPadding = Instance.new("UIPadding", sizeIdLabel)
+idPadding.PaddingLeft = UDim.new(0, 10)
+idPadding.PaddingRight = UDim.new(0, 10)
 
 -- ID SNIFFER
-local currentSizeId = nil
+_G.DetectedSizeID = _G.DetectedSizeID or nil
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
+
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
     if self == POST and args[2] == "UpdateScale" then
-        currentSizeId = tostring(args[1])
-        sizeIdLabel.Text = currentSizeId
+        local foundId = tostring(args[1])
+        _G.DetectedSizeID = foundId
+        if sizeIdLabel then
+            sizeIdLabel.Text = "ID: FOUND (" .. foundId .. ")"
+        end
     end
     return oldNamecall(self, ...)
 end)
 setreadonly(mt, true)
 
--- SEARCH
+if _G.DetectedSizeID then 
+    sizeIdLabel.Text = "ID: FOUND (" .. _G.DetectedSizeID .. ")" 
+end
+
+-- SEARCH BAR
 local searchFrame = Instance.new("Frame", frame)
 searchFrame.Size = UDim2.new(1, -20, 0, 45)
 searchFrame.Position = UDim2.new(0, 10, 0, 100)
@@ -184,7 +201,7 @@ local searchBox = Instance.new("TextBox", searchFrame)
 searchBox.Size = UDim2.new(1, -50, 1, 0)
 searchBox.Position = UDim2.new(0, 15, 0, 0)
 searchBox.BackgroundTransparency = 1
-searchBox.PlaceholderText = "Search me or others..."
+searchBox.PlaceholderText = "Search..."
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.new(1,1,1)
 searchBox.TextXAlignment = Enum.TextXAlignment.Left
@@ -227,25 +244,26 @@ local function updateList()
 
     for _, player in ipairs(pArray) do
         local isMe = (player == LocalPlayer)
-        local nameMatch = player.Name:lower():find(filter)
-        local displayMatch = player.DisplayName:lower():find(filter)
-        local meSearch = (isMe and ("me"):find(filter))
-
-        if nameMatch or displayMatch or meSearch then
+        if player.Name:lower():find(filter) or player.DisplayName:lower():find(filter) or (isMe and ("me"):find(filter)) then
             local btn = Instance.new("TextButton", playerList)
-            btn.Size = UDim2.new(1, -4, 0, 28)
+            btn.Size = UDim2.new(1, -10, 0, 30)
             btn.TextColor3 = Color3.new(1, 1, 1)
             btn.TextXAlignment = Enum.TextXAlignment.Left
-            btn.TextSize = 11
+            btn.TextScaled = true 
+            
+            local btnPadding = Instance.new("UIPadding", btn)
+            btnPadding.PaddingLeft = UDim.new(0, 8)
+            btnPadding.PaddingRight = UDim.new(0, 8)
+
             styleElement(btn, 4)
             
             if isMe then
-                btn.Text = " me"
+                btn.Text = "ME"
                 btn.Font = Enum.Font.GothamBold
                 btn.BackgroundColor3 = selectedPlayers[player.Name] and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(30, 60, 100)
                 btn.LayoutOrder = -1
             else
-                btn.Text = " " .. player.DisplayName .. ":" .. player.Name
+                btn.Text = player.DisplayName .. " (@" .. player.Name .. ")"
                 btn.Font = Enum.Font.Gotham
                 btn.BackgroundColor3 = selectedPlayers[player.Name] and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(45, 45, 45)
                 btn.LayoutOrder = 0
@@ -316,19 +334,19 @@ allBtn.Text = "APPLY TO EVERYONE"
 allBtn.TextColor3 = Color3.new(1,1,1)
 styleElement(allBtn)
 
--- SCALE LOGIC (WITH AUTO CAMERA ZOOM)
+-- SCALE LOGIC
 local function applySize(target, inputNum)
-    if not target or not currentSizeId then return end
+    local useId = _G.DetectedSizeID
+    if not target or not useId then return end
     for part, enabled in pairs(selectedParts) do
         if enabled then 
-            POST:FireServer(currentSizeId, "UpdateScale", target, part, inputNum * 100) 
+            POST:FireServer(useId, "UpdateScale", target, part, inputNum * 100) 
         end
     end
     
-    -- Auto Camera Adjust for Local Player
     if target == LocalPlayer then
         local baseZoom = 128
-        local multiplier = math.max(inputNum, 0.5) -- Minimum scale floor
+        local multiplier = math.max(inputNum, 0.5)
         LocalPlayer.CameraMaxZoomDistance = baseZoom * multiplier
     end
 end

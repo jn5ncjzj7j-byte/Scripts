@@ -1,334 +1,378 @@
---// ================= SERVICES =================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local POST = ReplicatedStorage:WaitForChild("POST")
+local Camera = workspace.CurrentCamera
 
---// ================= PATHS =================
-local WeaponFolder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Weapons")
+-- Cleanup existing
+if PlayerGui:FindFirstChild("SizeEditorGUI") then PlayerGui.SizeEditorGUI:Destroy() end
 
---// ================= REMOTES =================
--- SNIPER
-local SniperRemote =
-	ReplicatedStorage:WaitForChild("NetworkEvents")
-	:WaitForChild("RemoteEvent")
+local function styleElement(obj, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 6)
+    corner.Parent = obj
+end
 
--- OTHER GUNS
-local GunsFolder =
-	ReplicatedStorage:WaitForChild("Remotes")
-	:WaitForChild("Guns")
+-- ESP LOGIC
+local selectedPlayers = {} 
+local espActive = true
 
--- MELEE
-local MeleeRemote =
-	ReplicatedStorage:WaitForChild("Remotes")
-	:WaitForChild("Melee")
-	:WaitForChild("Damage")
+local function getESPColor(player)
+    return selectedPlayers[player.Name] and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 255)
+end
 
--- GIVE WEAPON
-local EquipRemote =
-	ReplicatedStorage:WaitForChild("Remotes")
-	:WaitForChild("Shop")
-	:WaitForChild("EquipWeapon")
+local function updatePlayerESPVisual(player)
+    if player and player.Character then
+        local highlight = player.Character:FindFirstChild("ESPHighlight")
+        if highlight then
+            highlight.FillColor = getESPColor(player)
+            highlight.Enabled = espActive
+        end
+        local tag = player.Character:FindFirstChild("ESPNameTag")
+        if tag then tag.Enabled = espActive end
+    end
+end
 
---// ================= SETTINGS =================
-local TARGET_FOLDER = "LivingThings"
-local SNIPER_EVENT = "GUN_DAMAGE"
+local function applyESP(player)
+    if player == LocalPlayer then return end
+    local function setupCharacter(char)
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESPHighlight"
+        highlight.FillColor = getESPColor(player)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineColor = Color3.new(1, 1, 1)
+        highlight.Enabled = espActive
+        highlight.Parent = char
 
---// ================= STATES =================
-local shootNPC = false
-local shootPlayer = false
-local selectedWeapon = "None"
-local guiOpen = false
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ESPNameTag"
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Enabled = espActive
+        billboard.Parent = char
 
--- auto give weapon
-local lastWeaponName = nil
-local giveCooldown = false
+        local label = Instance.new("TextLabel", billboard)
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 14
+    end
+    if player.Character then setupCharacter(player.Character) end
+    player.CharacterAdded:Connect(setupCharacter)
+end
 
---// ================= GUI ROOT =================
-local gui = Instance.new("ScreenGui")
-gui.Name = "KillAuraGUI"
+-- MAIN GUI
+local gui = Instance.new("ScreenGui", PlayerGui)
+gui.Name = "SizeEditorGUI"
 gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
 
---// ================= MAIN FRAME =================
+-- DRAGGABLE TOGGLE BAR
+local toggleBar = Instance.new("Frame", gui)
+toggleBar.Size = UDim2.new(0, 210, 0, 45)
+toggleBar.Position = UDim2.new(1, -230, 1, -70)
+toggleBar.BackgroundColor3 = Color3.fromRGB(60, 120, 215)
+toggleBar.Active = true
+styleElement(toggleBar, 12)
+
+local mainToggle = Instance.new("TextButton", toggleBar)
+mainToggle.Size = UDim2.new(0.6, 0, 1, 0)
+mainToggle.BackgroundTransparency = 1
+mainToggle.Text = "CLOSE GUI"
+mainToggle.TextColor3 = Color3.new(1, 1, 1)
+mainToggle.Font = Enum.Font.GothamBold
+mainToggle.TextSize = 14
+
+local divider = Instance.new("Frame", toggleBar)
+divider.Size = UDim2.new(0, 3, 0.7, 0)
+divider.Position = UDim2.new(0.6, -1, 0.15, 0)
+divider.BackgroundColor3 = Color3.new(1, 1, 1)
+styleElement(divider, 2)
+
+local espToggle = Instance.new("TextButton", toggleBar)
+espToggle.Size = UDim2.new(0.4, 0, 1, 0)
+espToggle.Position = UDim2.new(0.6, 0, 0, 0)
+espToggle.BackgroundTransparency = 1
+espToggle.Text = "ESP [X]"
+espToggle.TextColor3 = Color3.new(1, 1, 1)
+espToggle.Font = Enum.Font.GothamBold
+espToggle.TextSize = 14
+
+-- MAIN FRAME
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 340, 0, 380)
-frame.Position = UDim2.new(0, 30, 0, 200)
-frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
-frame.BorderSizePixel = 0
-frame.Visible = false
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,14)
+frame.Size = UDim2.new(0, 320, 0, 540)
+frame.Position = UDim2.new(0.5, -160, 0.5, -270)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.Active = true
+styleElement(frame, 12)
 
---// ================= DRAG (PC + MOBILE) =================
-do
-	local dragging = false
-	local dragStart
-	local startPos
+local minBtn = Instance.new("TextButton", frame)
+minBtn.Size = UDim2.new(0, 28, 0, 28)
+minBtn.Position = UDim2.new(1, -38, 0, 10)
+minBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+minBtn.Text = "—"
+minBtn.TextColor3 = Color3.new(1, 1, 1)
+minBtn.Font = Enum.Font.GothamBold
+styleElement(minBtn, 14)
 
-	frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
+-- DRAGGING
+local function makeDraggable(obj)
+    local dragging, dragInput, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    obj.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+makeDraggable(frame)
+makeDraggable(toggleBar)
 
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
+-- ID DISPLAY
+local sizeIdLabel = Instance.new("TextBox", frame)
+sizeIdLabel.Size = UDim2.new(1, -20, 0, 40)
+sizeIdLabel.Position = UDim2.new(0, 10, 0, 50)
+sizeIdLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+sizeIdLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+sizeIdLabel.Text = "WAITING FOR ID..."
+sizeIdLabel.ClearTextOnFocus = false
+styleElement(sizeIdLabel, 8)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (
-			input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		) then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
-		end
-	end)
+-- ID SNIFFER
+local currentSizeId = nil
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if self == POST and args[2] == "UpdateScale" then
+        currentSizeId = tostring(args[1])
+        sizeIdLabel.Text = currentSizeId
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+-- SEARCH
+local searchFrame = Instance.new("Frame", frame)
+searchFrame.Size = UDim2.new(1, -20, 0, 45)
+searchFrame.Position = UDim2.new(0, 10, 0, 100)
+searchFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+styleElement(searchFrame, 8)
+
+local searchBox = Instance.new("TextBox", searchFrame)
+searchBox.Size = UDim2.new(1, -50, 1, 0)
+searchBox.Position = UDim2.new(0, 15, 0, 0)
+searchBox.BackgroundTransparency = 1
+searchBox.PlaceholderText = "Search me or others..."
+searchBox.Text = ""
+searchBox.TextColor3 = Color3.new(1,1,1)
+searchBox.TextXAlignment = Enum.TextXAlignment.Left
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 14
+
+local clearX = Instance.new("TextButton", searchFrame)
+clearX.Size = UDim2.new(0, 24, 0, 24)
+clearX.Position = UDim2.new(1, -34, 0.5, -12)
+clearX.BackgroundColor3 = Color3.new(1, 1, 1)
+clearX.Text = "x"
+clearX.TextColor3 = Color3.new(0, 0, 0)
+clearX.Font = Enum.Font.GothamBold
+clearX.TextSize = 14
+clearX.Visible = false
+styleElement(clearX, 12)
+
+-- PLAYER LIST
+local playerList = Instance.new("ScrollingFrame", frame)
+playerList.Position = UDim2.new(0, 10, 0, 155)
+playerList.Size = UDim2.new(1, -20, 0, 80)
+playerList.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+playerList.BorderSizePixel = 0
+playerList.ScrollBarThickness = 2
+playerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local listLayout = Instance.new("UIListLayout", playerList)
+listLayout.Padding = UDim.new(0, 4)
+
+local function updateList()
+    local filter = searchBox.Text:lower()
+    clearX.Visible = (searchBox.Text ~= "")
+    for _, child in pairs(playerList:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+    
+    local pArray = Players:GetPlayers()
+    table.sort(pArray, function(a, b)
+        if a == LocalPlayer then return true end
+        if b == LocalPlayer then return false end
+        return a.Name:lower() < b.Name:lower()
+    end)
+
+    for _, player in ipairs(pArray) do
+        local isMe = (player == LocalPlayer)
+        local nameMatch = player.Name:lower():find(filter)
+        local displayMatch = player.DisplayName:lower():find(filter)
+        local meSearch = (isMe and ("me"):find(filter))
+
+        if nameMatch or displayMatch or meSearch then
+            local btn = Instance.new("TextButton", playerList)
+            btn.Size = UDim2.new(1, -4, 0, 28)
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.TextSize = 11
+            styleElement(btn, 4)
+            
+            if isMe then
+                btn.Text = " me"
+                btn.Font = Enum.Font.GothamBold
+                btn.BackgroundColor3 = selectedPlayers[player.Name] and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(30, 60, 100)
+                btn.LayoutOrder = -1
+            else
+                btn.Text = " " .. player.DisplayName .. ":" .. player.Name
+                btn.Font = Enum.Font.Gotham
+                btn.BackgroundColor3 = selectedPlayers[player.Name] and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(45, 45, 45)
+                btn.LayoutOrder = 0
+            end
+            
+            btn.MouseButton1Click:Connect(function()
+                selectedPlayers[player.Name] = not selectedPlayers[player.Name] or nil
+                updateList()
+                updatePlayerESPVisual(player) 
+            end)
+        end
+    end
 end
 
---// ================= TITLE =================
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1,0,0,40)
-title.BackgroundTransparency = 1
-title.Text = "🔥 KILL AURA 🔥"
-title.Font = Enum.Font.GothamBlack
-title.TextSize = 20
-title.TextColor3 = Color3.fromRGB(255,80,80)
+-- CONTROLS
+local cancelBtn = Instance.new("TextButton", frame)
+cancelBtn.Size = UDim2.new(1, -20, 0, 25)
+cancelBtn.Position = UDim2.new(0, 10, 0, 245)
+cancelBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+cancelBtn.Text = "DESELECT ALL"
+cancelBtn.TextColor3 = Color3.new(1, 1, 1)
+cancelBtn.Font = Enum.Font.GothamBold
+cancelBtn.TextSize = 11
+styleElement(cancelBtn, 4)
 
---// ================= GIVE WEAPON =================
-local giveBtn = Instance.new("TextButton", frame)
-giveBtn.Size = UDim2.new(0,280,0,40)
-giveBtn.Position = UDim2.new(0.5,-140,0,50)
-giveBtn.BackgroundColor3 = Color3.fromRGB(70,120,220)
-giveBtn.Text = "GIVE WEAPON"
-giveBtn.Font = Enum.Font.GothamBold
-giveBtn.TextSize = 15
-giveBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", giveBtn).CornerRadius = UDim.new(0,10)
+local bodyParts = {"Height", "Width", "Depth", "Head"}
+local selectedParts = {Height = true, Width = true, Depth = true, Head = true}
+local partsFrame = Instance.new("Frame", frame)
+partsFrame.Size = UDim2.new(1, -20, 0, 80)
+partsFrame.Position = UDim2.new(0, 10, 0, 280)
+partsFrame.BackgroundTransparency = 1
+local grid = Instance.new("UIGridLayout", partsFrame)
+grid.CellSize = UDim2.new(0.48, 0, 0, 35)
 
-local selectLabel = Instance.new("TextLabel", frame)
-selectLabel.Size = UDim2.new(0,280,0,30)
-selectLabel.Position = UDim2.new(0.5,-140,0,95)
-selectLabel.BackgroundTransparency = 1
-selectLabel.Text = "Selected: None"
-selectLabel.Font = Enum.Font.Gotham
-selectLabel.TextSize = 14
-selectLabel.TextColor3 = Color3.fromRGB(200,200,200)
-
---// ================= WEAPON LIST =================
-local scroll = Instance.new("ScrollingFrame", frame)
-scroll.Size = UDim2.new(0,300,0,150)
-scroll.Position = UDim2.new(0.5,-150,0,130)
-scroll.BackgroundTransparency = 1
-scroll.ScrollBarImageTransparency = 0.2
-
-local layout = Instance.new("UIListLayout", scroll)
-layout.Padding = UDim.new(0,6)
-
-for _, w in ipairs(WeaponFolder:GetChildren()) do
-	local btn = Instance.new("TextButton", scroll)
-	btn.Size = UDim2.new(1,0,0,32)
-	btn.BackgroundColor3 = Color3.fromRGB(45,45,45)
-	btn.Text = w.Name
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 14
-	btn.TextColor3 = Color3.new(1,1,1)
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
-
-	btn.MouseButton1Click:Connect(function()
-		selectedWeapon = w.Name
-		selectLabel.Text = "Selected: "..w.Name
-	end)
+for _, part in ipairs(bodyParts) do
+    local cb = Instance.new("TextButton", partsFrame)
+    cb.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    cb.Text = part
+    cb.TextColor3 = Color3.new(1, 1, 1)
+    styleElement(cb, 4)
+    cb.MouseButton1Click:Connect(function()
+        selectedParts[part] = not selectedParts[part]
+        cb.BackgroundColor3 = selectedParts[part] and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(60, 60, 60)
+    end)
 end
 
-task.wait()
-scroll.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
+local scaleBox = Instance.new("TextBox", frame)
+scaleBox.Size = UDim2.new(1, -20, 0, 40)
+scaleBox.Position = UDim2.new(0, 10, 0, 370)
+scaleBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+scaleBox.Text = "1"
+scaleBox.TextColor3 = Color3.new(1,1,1)
+styleElement(scaleBox)
 
---// ================= TOGGLES =================
-local npcBtn = Instance.new("TextButton", frame)
-npcBtn.Size = UDim2.new(0,280,0,40)
-npcBtn.Position = UDim2.new(0.5,-140,0,290)
-npcBtn.BackgroundColor3 = Color3.fromRGB(180,60,60)
-npcBtn.Text = "NPC : OFF"
-npcBtn.Font = Enum.Font.GothamBold
-npcBtn.TextSize = 16
-npcBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", npcBtn).CornerRadius = UDim.new(0,10)
+local applyBtn = Instance.new("TextButton", frame)
+applyBtn.Size = UDim2.new(1, -20, 0, 40)
+applyBtn.Position = UDim2.new(0, 10, 0, 420)
+applyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+applyBtn.Text = "APPLY TO SELECTED"
+applyBtn.TextColor3 = Color3.new(1,1,1)
+styleElement(applyBtn)
 
-local plrBtn = Instance.new("TextButton", frame)
-plrBtn.Size = UDim2.new(0,280,0,40)
-plrBtn.Position = UDim2.new(0.5,-140,0,335)
-plrBtn.BackgroundColor3 = Color3.fromRGB(180,60,60)
-plrBtn.Text = "PLAYER : OFF"
-plrBtn.Font = Enum.Font.GothamBold
-plrBtn.TextSize = 16
-plrBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", plrBtn).CornerRadius = UDim.new(0,10)
+local allBtn = Instance.new("TextButton", frame)
+allBtn.Size = UDim2.new(1, -20, 0, 40)
+allBtn.Position = UDim2.new(0, 10, 0, 470)
+allBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+allBtn.Text = "APPLY TO EVERYONE"
+allBtn.TextColor3 = Color3.new(1,1,1)
+styleElement(allBtn)
 
---// ================= TOGGLE BUTTON =================
-local toggleBtn = Instance.new("TextButton", gui)
-toggleBtn.Size = UDim2.new(0,140,0,36)
-toggleBtn.Position = UDim2.new(0,10,1,-46)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-toggleBtn.Text = "^"
-toggleBtn.Font = Enum.Font.GothamBlack
-toggleBtn.TextSize = 22
-toggleBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,10)
-
-toggleBtn.MouseButton1Click:Connect(function()
-	guiOpen = not guiOpen
-	frame.Visible = guiOpen
-	toggleBtn.Text = guiOpen and "v" or "^"
-end)
-
---// ================= BUTTON LOGIC =================
-giveBtn.MouseButton1Click:Connect(function()
-	if selectedWeapon ~= "None" then
-		lastWeaponName = selectedWeapon
-		pcall(function()
-			EquipRemote:InvokeServer(selectedWeapon)
-		end)
-	end
-end)
-
-npcBtn.MouseButton1Click:Connect(function()
-	shootNPC = not shootNPC
-	npcBtn.Text = shootNPC and "NPC : ON" or "NPC : OFF"
-	npcBtn.BackgroundColor3 = shootNPC and Color3.fromRGB(60,180,90) or Color3.fromRGB(180,60,60)
-end)
-
-plrBtn.MouseButton1Click:Connect(function()
-	shootPlayer = not shootPlayer
-	plrBtn.Text = shootPlayer and "PLAYER : ON" or "PLAYER : OFF"
-	plrBtn.BackgroundColor3 = shootPlayer and Color3.fromRGB(60,180,90) or Color3.fromRGB(180,60,60)
-end)
-
---// ================= GET EQUIPPED TOOL =================
-local function getEquippedTool()
-	local char = player.Character
-	if not char then return end
-
-	for _, v in ipairs(char:GetChildren()) do
-		if v:IsA("Tool") then
-			lastWeaponName = v.Name
-			return v
-		end
-	end
+-- SCALE LOGIC (WITH AUTO CAMERA ZOOM)
+local function applySize(target, inputNum)
+    if not target or not currentSizeId then return end
+    for part, enabled in pairs(selectedParts) do
+        if enabled then 
+            POST:FireServer(currentSizeId, "UpdateScale", target, part, inputNum * 100) 
+        end
+    end
+    
+    -- Auto Camera Adjust for Local Player
+    if target == LocalPlayer then
+        local baseZoom = 128
+        local multiplier = math.max(inputNum, 0.5) -- Minimum scale floor
+        LocalPlayer.CameraMaxZoomDistance = baseZoom * multiplier
+    end
 end
 
---// ================= AUTO GIVE BACK WEAPON =================
-RunService.Heartbeat:Connect(function()
-	if giveCooldown then return end
-	if not lastWeaponName then return end
-
-	local char = player.Character
-	if not char then return end
-
-	for _, v in ipairs(char:GetChildren()) do
-		if v:IsA("Tool") and v.Name == lastWeaponName then
-			return
-		end
-	end
-
-	giveCooldown = true
-	pcall(function()
-		EquipRemote:InvokeServer(lastWeaponName)
-	end)
-
-	task.delay(1.2, function()
-		giveCooldown = false
-	end)
+applyBtn.MouseButton1Click:Connect(function()
+    local val = tonumber(scaleBox.Text) or 1
+    for name, _ in pairs(selectedPlayers) do
+        local p = Players:FindFirstChild(name)
+        if p then applySize(p, val) end
+    end
 end)
 
-player.CharacterAdded:Connect(function()
-	task.wait(1)
-	giveCooldown = false
+allBtn.MouseButton1Click:Connect(function()
+    local val = tonumber(scaleBox.Text) or 1
+    for _, p in ipairs(Players:GetPlayers()) do applySize(p, val) end
 end)
 
---// ================= FIRE GUN =================
-local function fireGun(target)
-	local tool = getEquippedTool()
-	if not tool then return end
-
-	local hitPart =
-		target:FindFirstChild("Torso")
-		or target:FindFirstChild("UpperTorso")
-		or target:FindFirstChild("HumanoidRootPart")
-		or target:FindFirstChild("Head")
-
-	if not hitPart then return end
-
-	if tool.Name:lower():find("sniper") then
-		pcall(function()
-			SniperRemote:FireServer(SNIPER_EVENT, target)
-		end)
-		return
-	end
-
-	local gunRemote = GunsFolder:FindFirstChild(tool.Name .. "Damage")
-	if gunRemote then
-		pcall(function()
-			gunRemote:FireServer({[2] = hitPart})
-		end)
-	end
-end
-
---// ================= MELEE =================
-local function meleeHit(model)
-	local part =
-		model:FindFirstChild("Head")
-		or model:FindFirstChild("HumanoidRootPart")
-
-	if part then
-		pcall(function()
-			MeleeRemote:InvokeServer(part)
-		end)
-	end
-end
-
---// ================= KILL AURA =================
-local lastHit = {}
-local HIT_CD = 0.15
-
-RunService.Heartbeat:Connect(function()
-	local folder = workspace:FindFirstChild(TARGET_FOLDER)
-	if not folder then return end
-
-	local now = os.clock()
-
-	for _, target in ipairs(folder:GetChildren()) do
-		if not target:IsA("Model") then continue end
-		local hum = target:FindFirstChildOfClass("Humanoid")
-		if not hum or hum.Health <= 0 then continue end
-		if lastHit[target] and now - lastHit[target] < HIT_CD then continue end
-
-		local targetPlayer = Players:GetPlayerFromCharacter(target)
-
-		if targetPlayer then
-			if shootPlayer and targetPlayer ~= player then
-				lastHit[target] = now
-				fireGun(target)
-				task.spawn(meleeHit, target)
-			end
-		else
-			if shootNPC then
-				lastHit[target] = now
-				fireGun(target)
-				task.spawn(meleeHit, target)
-			end
-		end
-	end
+cancelBtn.MouseButton1Click:Connect(function()
+    selectedPlayers = {}
+    for _, p in ipairs(Players:GetPlayers()) do updatePlayerESPVisual(p) end
+    updateList()
 end)
+
+searchBox:GetPropertyChangedSignal("Text"):Connect(updateList)
+clearX.MouseButton1Click:Connect(function() searchBox.Text = ""; updateList() end)
+
+espToggle.MouseButton1Click:Connect(function()
+    espActive = not espActive
+    espToggle.Text = espActive and "ESP [X]" or "ESP [ ]"
+    for _, p in ipairs(Players:GetPlayers()) do updatePlayerESPVisual(p) end
+end)
+
+mainToggle.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+    mainToggle.Text = frame.Visible and "CLOSE GUI" or "OPEN GUI"
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    frame.Visible = false
+    mainToggle.Text = "OPEN GUI"
+end)
+
+-- INITIALIZE
+for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
+Players.PlayerAdded:Connect(function(p) applyESP(p); updateList() end)
+Players.PlayerRemoving:Connect(function(p) selectedPlayers[p.Name] = nil; updateList() end)
+updateList()

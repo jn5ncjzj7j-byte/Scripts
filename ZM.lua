@@ -48,7 +48,7 @@ local giveCooldown = false
 
 --// ================= GUI ROOT =================
 local gui = Instance.new("ScreenGui")
-gui.Name = " "
+gui.Name = "KillAuraGUI"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -102,7 +102,7 @@ end
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,40)
 title.BackgroundTransparency = 1
-title.Text = "Misg Hub"
+title.Text = "🔥 KILL AURA 🔥"
 title.Font = Enum.Font.GothamBlack
 title.TextSize = 20
 title.TextColor3 = Color3.fromRGB(255,80,80)
@@ -206,13 +206,13 @@ end)
 
 npcBtn.MouseButton1Click:Connect(function()
 	shootNPC = not shootNPC
-	npcBtn.Text = shootNPC and "NPC kill Aura : ON" or "NPC kill Aura : OFF"
+	npcBtn.Text = shootNPC and "NPC : ON" or "NPC : OFF"
 	npcBtn.BackgroundColor3 = shootNPC and Color3.fromRGB(60,180,90) or Color3.fromRGB(180,60,60)
 end)
 
 plrBtn.MouseButton1Click:Connect(function()
 	shootPlayer = not shootPlayer
-	plrBtn.Text = shootPlayer and "PLAYER kill Aura : ON" or "PLAYER kill Aura : OFF"
+	plrBtn.Text = shootPlayer and "PLAYER : ON" or "PLAYER : OFF"
 	plrBtn.BackgroundColor3 = shootPlayer and Color3.fromRGB(60,180,90) or Color3.fromRGB(180,60,60)
 end)
 

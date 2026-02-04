@@ -7,9 +7,9 @@ if not game:IsLoaded() then
 end
 
 if ZM then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/ZM.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/ZM.lua"))()
 elseif NT then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/NT.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/NT.lua"))()
 else
     local CoreGui = game:GetService("CoreGui")
     

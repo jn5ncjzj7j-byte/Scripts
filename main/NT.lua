@@ -17,9 +17,9 @@ local function styleElement(obj, radius)
     corner.Parent = obj
 end
 
--- ESP LOGIC (Updated to show real name)
+-- ESP LOGIC
 local selectedPlayers = {} 
-local espActive = true
+local espActive = false 
 
 local function getESPColor(player)
     return selectedPlayers[player.Name] and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 255)
@@ -45,29 +45,24 @@ local function applyESP(player)
         highlight.FillColor = getESPColor(player)
         highlight.FillTransparency = 0.5
         highlight.OutlineColor = Color3.new(1, 1, 1)
-        highlight.Enabled = espActive
+        highlight.Enabled = espActive 
         highlight.Parent = char
 
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "ESPNameTag"
-        billboard.Size = UDim2.new(0, 180, 0, 40) -- Slightly larger for dual names
+        billboard.Size = UDim2.new(0, 180, 0, 40)
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
-        billboard.Enabled = espActive
+        billboard.Enabled = espActive 
         billboard.Parent = char
 
         local label = Instance.new("TextLabel", billboard)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
-        -- UPDATED: Shows Display Name and @Username
         label.Text = player.DisplayName .. "\n(@" .. player.Name .. ")"
         label.TextColor3 = Color3.new(1, 1, 1)
         label.Font = Enum.Font.GothamBold
         label.TextScaled = true 
-        
-        local tagPadding = Instance.new("UIPadding", label)
-        tagPadding.PaddingTop = UDim.new(0, 2)
-        tagPadding.PaddingBottom = UDim.new(0, 2)
     end
     if player.Character then setupCharacter(player.Character) end
     player.CharacterAdded:Connect(setupCharacter)
@@ -104,27 +99,43 @@ local espToggle = Instance.new("TextButton", toggleBar)
 espToggle.Size = UDim2.new(0.4, 0, 1, 0)
 espToggle.Position = UDim2.new(0.6, 0, 0, 0)
 espToggle.BackgroundTransparency = 1
-espToggle.Text = "ESP [X]"
+espToggle.Text = "ESP [ ]" 
 espToggle.TextColor3 = Color3.new(1, 1, 1)
 espToggle.Font = Enum.Font.GothamBold
 espToggle.TextSize = 14
 
 -- MAIN FRAME
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 320, 0, 540)
-frame.Position = UDim2.new(0.5, -160, 0.5, -270)
+frame.Size = UDim2.new(0, 320, 0, 560) -- Slightly taller for title
+frame.Position = UDim2.new(0.5, -160, 0.5, -280)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.Active = true
 styleElement(frame, 12)
 
-local minBtn = Instance.new("TextButton", frame)
+-- TITLE BAR SECTION
+local titleBar = Instance.new("Frame", frame)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+styleElement(titleBar, 12)
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Misg Hub"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 18
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local minBtn = Instance.new("TextButton", titleBar)
 minBtn.Size = UDim2.new(0, 28, 0, 28)
-minBtn.Position = UDim2.new(1, -38, 0, 10)
-minBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
-minBtn.Text = "—"
+minBtn.Position = UDim2.new(1, -34, 0.5, -14)
+minBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Changed to red for contrast
+minBtn.Text = "X"
 minBtn.TextColor3 = Color3.new(1, 1, 1)
 minBtn.Font = Enum.Font.GothamBold
-styleElement(minBtn, 14)
+styleElement(minBtn, 6)
 
 -- DRAGGING LOGIC
 local function makeDraggable(obj)
@@ -152,19 +163,16 @@ end
 makeDraggable(frame)
 makeDraggable(toggleBar)
 
--- ID DISPLAY
+-- ID DISPLAY (Shifted down)
 local sizeIdLabel = Instance.new("TextLabel", frame)
 sizeIdLabel.Size = UDim2.new(1, -20, 0, 40)
-sizeIdLabel.Position = UDim2.new(0, 10, 0, 50)
+sizeIdLabel.Position = UDim2.new(0, 10, 0, 55)
 sizeIdLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 sizeIdLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
 sizeIdLabel.Text = "WAITING FOR ID..."
 sizeIdLabel.Font = Enum.Font.Code
 sizeIdLabel.TextScaled = true 
 styleElement(sizeIdLabel, 8)
-local idPadding = Instance.new("UIPadding", sizeIdLabel)
-idPadding.PaddingLeft = UDim.new(0, 10)
-idPadding.PaddingRight = UDim.new(0, 10)
 
 -- ID SNIFFER
 _G.DetectedSizeID = _G.DetectedSizeID or nil
@@ -193,7 +201,7 @@ end
 -- SEARCH BAR
 local searchFrame = Instance.new("Frame", frame)
 searchFrame.Size = UDim2.new(1, -20, 0, 45)
-searchFrame.Position = UDim2.new(0, 10, 0, 100)
+searchFrame.Position = UDim2.new(0, 10, 0, 105)
 searchFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 styleElement(searchFrame, 8)
 
@@ -221,7 +229,7 @@ styleElement(clearX, 12)
 
 -- PLAYER LIST
 local playerList = Instance.new("ScrollingFrame", frame)
-playerList.Position = UDim2.new(0, 10, 0, 155)
+playerList.Position = UDim2.new(0, 10, 0, 160)
 playerList.Size = UDim2.new(1, -20, 0, 80)
 playerList.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 playerList.BorderSizePixel = 0
@@ -281,7 +289,7 @@ end
 -- CONTROLS
 local cancelBtn = Instance.new("TextButton", frame)
 cancelBtn.Size = UDim2.new(1, -20, 0, 25)
-cancelBtn.Position = UDim2.new(0, 10, 0, 245)
+cancelBtn.Position = UDim2.new(0, 10, 0, 250)
 cancelBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
 cancelBtn.Text = "DESELECT ALL"
 cancelBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -293,7 +301,7 @@ local bodyParts = {"Height", "Width", "Depth", "Head"}
 local selectedParts = {Height = true, Width = true, Depth = true, Head = true}
 local partsFrame = Instance.new("Frame", frame)
 partsFrame.Size = UDim2.new(1, -20, 0, 80)
-partsFrame.Position = UDim2.new(0, 10, 0, 280)
+partsFrame.Position = UDim2.new(0, 10, 0, 285)
 partsFrame.BackgroundTransparency = 1
 local grid = Instance.new("UIGridLayout", partsFrame)
 grid.CellSize = UDim2.new(0.48, 0, 0, 35)
@@ -312,7 +320,7 @@ end
 
 local scaleBox = Instance.new("TextBox", frame)
 scaleBox.Size = UDim2.new(1, -20, 0, 40)
-scaleBox.Position = UDim2.new(0, 10, 0, 370)
+scaleBox.Position = UDim2.new(0, 10, 0, 380)
 scaleBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 scaleBox.Text = "1"
 scaleBox.TextColor3 = Color3.new(1,1,1)
@@ -320,7 +328,7 @@ styleElement(scaleBox)
 
 local applyBtn = Instance.new("TextButton", frame)
 applyBtn.Size = UDim2.new(1, -20, 0, 40)
-applyBtn.Position = UDim2.new(0, 10, 0, 420)
+applyBtn.Position = UDim2.new(0, 10, 0, 430)
 applyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
 applyBtn.Text = "APPLY TO SELECTED"
 applyBtn.TextColor3 = Color3.new(1,1,1)
@@ -328,7 +336,7 @@ styleElement(applyBtn)
 
 local allBtn = Instance.new("TextButton", frame)
 allBtn.Size = UDim2.new(1, -20, 0, 40)
-allBtn.Position = UDim2.new(0, 10, 0, 470)
+allBtn.Position = UDim2.new(0, 10, 0, 480)
 allBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 allBtn.Text = "APPLY TO EVERYONE"
 allBtn.TextColor3 = Color3.new(1,1,1)

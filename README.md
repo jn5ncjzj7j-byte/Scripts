@@ -1,5 +1,8 @@
 # lua Roblox script
-Misg Hub : ``loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/MisgHub.lua"))()``
+Misg Hub 
+```bash
+loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/MisgHub.lua"))()
+```
 
 
 # Javascript

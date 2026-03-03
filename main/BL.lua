@@ -117,7 +117,7 @@ local mainToggle = Instance.new("TextButton", toggleBar); mainToggle.Size = UDim
 
 local frame = Instance.new("Frame", gui); frame.Size = UDim2.new(0, 320, 0, 540); frame.Position = UDim2.new(0.5, -160, 0.5, -270); frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20); frame.Active = true; styleElement(frame, 12); makeDraggable(frame)
 local titleBar = Instance.new("Frame", frame); titleBar.Size = UDim2.new(1,0,0,40); titleBar.BackgroundColor3 = Color3.fromRGB(30,30,30); styleElement(titleBar, 12)
-local titleL = Instance.new("TextLabel", titleBar); titleL.Size = UDim2.new(1,0,1,0); titleL.BackgroundTransparency = 1; titleL.Text = "Misg Hub | V24 Target Fix"; titleL.TextColor3 = Color3.new(1,1,1); titleL.Font = Enum.Font.GothamBold; titleL.TextSize = 16
+local titleL = Instance.new("TextLabel", titleBar); titleL.Size = UDim2.new(1,0,1,0); titleL.BackgroundTransparency = 1; titleL.Text = "Misg Hub"; titleL.TextColor3 = Color3.new(1,1,1); titleL.Font = Enum.Font.GothamBold; titleL.TextSize = 16
 
 local qSearch = Instance.new("TextBox", frame); qSearch.Size = UDim2.new(1, -20, 0, 30); qSearch.Position = UDim2.new(0, 10, 0, 50); qSearch.BackgroundColor3 = Color3.fromRGB(35, 35, 35); qSearch.PlaceholderText = "Search Quest NPCs..."; qSearch.Text = ""; qSearch.TextColor3 = Color3.new(1,1,1); styleElement(qSearch, 8)
 local tpList = Instance.new("ScrollingFrame", frame); tpList.Position = UDim2.new(0,10,0,85); tpList.Size = UDim2.new(1,-20,0,90); tpList.BackgroundColor3 = Color3.fromRGB(25, 25, 25); styleElement(tpList, 8); Instance.new("UIListLayout", tpList).Padding = UDim.new(0,4)

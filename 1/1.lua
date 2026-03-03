@@ -1,6 +1,6 @@
 local ZM  = game.PlaceId == 14419907512
 local NT  = game.PlaceId == 4655652068
-local BL = game.PlaceId == 14890802310
+local BL = game.PlaceId == {14890802310, 74747090658891}
 local DiscordLink = "https://discord.gg/MQaKgPjFD"
 
 if not game:IsLoaded() then

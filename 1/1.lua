@@ -1,5 +1,6 @@
 local ZM  = game.PlaceId == 14419907512
 local NT  = game.PlaceId == 4655652068
+local BL = game.PlaceId == 14890802310
 local DiscordLink = "https://discord.gg/MQaKgPjFD"
 
 if not game:IsLoaded() then
@@ -10,6 +11,8 @@ if ZM then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/ZM.lua"))()
 elseif NT then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/NT.lua"))()
+elseif BL then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/BL.lua"))()
 else
     local CoreGui = game:GetService("CoreGui")
     

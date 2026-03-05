@@ -23,7 +23,7 @@ Loader.Files = {
         CreatorId = 5271390838
     },
     ["Zombie Game"] = {
-        File = "main/Zm.lua"
+        File = "main/ZM.lua"
         CreaterId = 5386185136
     },
 }

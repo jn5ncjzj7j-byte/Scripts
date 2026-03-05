@@ -20,11 +20,11 @@ local Loader = {}
 Loader.Files = {
     ["Bizzare Lineage"] = {
         File = "main/BL.lua",
-        CreatorId = 10564207351
+        CreatorId = 5271390838
     },
     ["Zombie Game"] = {
         File = "main/Zm.lua"
-        CreaterId = 10564207351
+        CreaterId = 5386185136
     },
 }
 
@@ -32,7 +32,7 @@ function Loader:LoadByCreatorId(CreatorId)
     for GameName, Data in pairs(self.Files) do
         if Data.CreatorId == CreatorId then
             
-            local Url = "https://raw.githubusercontent.com/NyxaSylph/Vellure/main/" .. Data.File
+            local Url = "https://github.com/jn5ncjzj7j-byte/Scripts/main" .. Data.File
             
             local Success, Result = pcall(function()
                 return loadstring(game:HttpGet(Url))()

@@ -11,10 +11,10 @@ local Settings = {
     ESP = true,
     Aimbot = true,
     TeamCheck = false,
-    WallCheck = true, -- NEW: Wall Check Setting
+    WallCheck = true,
     FullBright = true,
     ShowFOV = true,
-    FOV = 85,
+    FOV = 150, -- Set to your default
     Language = "TH",
     Whitelist = {"khomggg", "7h3_W0r1d"}
 }
@@ -27,7 +27,7 @@ local Lang = {
         ESP = "ESP",
         Aimbot = "Aimbot Head",
         Team = "Team Check",
-        Wall = "Wall Check", -- NEW
+        Wall = "Wall Check",
         Bright = "FullBright",
         FOV = "Show FOV",
         Lang = "Language: EN",
@@ -40,7 +40,7 @@ local Lang = {
         ESP = "เปิด ESP",
         Aimbot = "ล็อคหัว (Aimbot)",
         Team = "เช็คทีม",
-        Wall = "เช็คกำแพง", -- NEW
+        Wall = "เช็คกำแพง",
         Bright = "เปิดสว่าง",
         FOV = "แสดงวง FOV",
         Lang = "ภาษา: TH",
@@ -51,10 +51,9 @@ local Lang = {
 
 -- UI Setup
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "%§%"
+ScreenGui.Name = "StyledCheatGUI"
 ScreenGui.ResetOnSpawn = false
 
--- Utility Function for Styling
 local function styleElement(obj, radius)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, radius or 6)
@@ -79,13 +78,13 @@ mainToggle.TextSize = 14
 
 -- MAIN FRAME
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 280, 0, 600) -- Increased height for more buttons
+MainFrame.Size = UDim2.new(0, 280, 0, 600)
 MainFrame.Position = UDim2.new(0.5, -140, 0.5, -300)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.Active = true
 styleElement(MainFrame, 12)
 
--- TITLE BAR
+-- TITLE BAR (FIXED: Title is now Misg Aimbot)
 local titleBar = Instance.new("Frame", MainFrame)
 titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -110,7 +109,7 @@ minBtn.TextColor3 = Color3.new(1, 1, 1)
 minBtn.Font = Enum.Font.GothamBold
 styleElement(minBtn, 6)
 
--- DRAGGING LOGIC
+-- DRAGGING LOGIC (RESTORED)
 local function makeDraggable(obj)
     local dragging, dragInput, dragStart, startPos
     obj.InputBegan:Connect(function(input)
@@ -130,10 +129,10 @@ end
 makeDraggable(MainFrame)
 makeDraggable(toggleBar)
 
--- Input Box: Whitelist
+-- FIXED TEXTBOXES
 local WLInput = Instance.new("TextBox", MainFrame)
 WLInput.Size = UDim2.new(1, -30, 0, 40)
-WLInput.Position = UDim2.new(0, 15, 0, 460) -- Moved down
+WLInput.Position = UDim2.new(0, 15, 0, 460)
 WLInput.PlaceholderText = Lang.EN.WLPlace
 WLInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 WLInput.TextColor3 = Color3.new(1, 1, 1)
@@ -147,12 +146,11 @@ WLInput.FocusLost:Connect(function(enter)
     end
 end)
 
--- Input Box: FOV
 local FOVInput = Instance.new("TextBox", MainFrame)
 FOVInput.Size = UDim2.new(1, -30, 0, 40)
-FOVInput.Position = UDim2.new(0, 15, 0, 510) -- Moved down
+FOVInput.Position = UDim2.new(0, 15, 0, 510)
 FOVInput.PlaceholderText = Lang.EN.FOVPlace
-FOVInput.Text = "85"
+FOVInput.Text = "150"
 FOVInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 FOVInput.TextColor3 = Color3.new(1, 1, 1)
 FOVInput.Font = Enum.Font.Gotham
@@ -162,26 +160,29 @@ FOVInput.FocusLost:Connect(function() Settings.FOV = tonumber(FOVInput.Text) or 
 
 -- Wall Check Logic
 local function IsVisible(part)
-    if not Settings.WallCheck then return true end -- If WallCheck is OFF, everything is "visible"
+    if not Settings.WallCheck then return true end
     local castParams = RaycastParams.new()
     castParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
     castParams.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 2000, castParams)
+    local result = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 5000, castParams)
     if result then return result.Instance:IsDescendantOf(part.Parent) end
     return true
 end
 
--- ESP System
+-- FIXED ESP (Forced Loop for Players and NPCs)
 local function ApplyESP(char, color, dist)
     local h = char:FindFirstChild("Highlight") or Instance.new("Highlight", char)
+    h.Name = "Highlight"
     h.FillColor = color
     h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.Enabled = Settings.ESP
     
     local tag = char:FindFirstChild("CheatTag") or Instance.new("BillboardGui", char)
     if not tag:FindFirstChild("Label") then
         tag.Name = "CheatTag"; tag.AlwaysOnTop = true; tag.Size = UDim2.new(0,150,0,40); tag.StudsOffset = Vector3.new(0,3,0)
         local l = Instance.new("TextLabel", tag); l.Name = "Label"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1,0,1,0); l.TextStrokeTransparency = 0; l.TextSize = 14; l.Font = Enum.Font.GothamBold
     end
+    tag.Enabled = Settings.ESP
     tag.Label.Text = string.format("%s\n[%d m]", char.Name, math.floor(dist))
     tag.Label.TextColor3 = color
 end
@@ -190,11 +191,19 @@ end
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1.5; FOVCircle.Color = Color3.new(1,1,1); FOVCircle.Filled = false
 
--- Main Loop
+-- Main Loop (RESTORED AIMBOT LOGIC)
 RunService.RenderStepped:Connect(function()
     local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     FOVCircle.Position = center; FOVCircle.Radius = Settings.FOV
     FOVCircle.Visible = Settings.ShowFOV
+    
+    -- FIXED FULLBRIGHT
+    if Settings.FullBright then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.new(1,1,1)
+    end
     
     local lockTarget = nil
     local shortestDist = Settings.FOV
@@ -214,18 +223,21 @@ RunService.RenderStepped:Connect(function()
             local isTeam = Settings.TeamCheck and playerObj and LocalPlayer.Team and playerObj.Team == LocalPlayer.Team
             local visible = IsVisible(char.Head)
             
+            -- Color Logic
             local color = Color3.fromRGB(255, 0, 0)
             if isWL or isTeam then color = Color3.fromRGB(0, 160, 255)
             elseif isNPC then color = visible and Color3.fromRGB(255, 140, 0) or Color3.fromRGB(255, 255, 0)
             elseif visible then color = Color3.fromRGB(0, 255, 0) end
             
-            if Settings.ESP then ApplyESP(char, color, dist)
+            -- ESP (Forced check)
+            if Settings.ESP then 
+                ApplyESP(char, color, dist)
             else
-                if char:FindFirstChild("Highlight") then char.Highlight:Destroy() end
-                if char:FindFirstChild("CheatTag") then char.CheatTag:Destroy() end
+                if char:FindFirstChild("Highlight") then char.Highlight.Enabled = false end
+                if char:FindFirstChild("CheatTag") then char.CheatTag.Enabled = false end
             end
             
-            -- Aimbot Logic modified by WallCheck setting within IsVisible
+            -- ORIGINAL AIMBOT LOGIC
             if Settings.Aimbot and not isWL and not isTeam and visible then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(char.Head.Position)
                 if onScreen then
@@ -244,33 +256,29 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Button Creation Helper
+-- Button Creation
 local Buttons = {}
 local function NewBtn(id, nameKey, y, set)
     local b = Instance.new("TextButton", MainFrame)
     b.Size = UDim2.new(1, -30, 0, 40); b.Position = UDim2.new(0, 15, 0, y)
     b.BackgroundColor3 = Settings[set] and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(45, 45, 45)
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 13
+    b.TextColor3 = Color3.new(1, 1, 1); b.Font = Enum.Font.GothamBold; b.TextSize = 13
     styleElement(b, 6)
     
     local function updateText()
-        local txt = Lang[Settings.Language][nameKey]
-        b.Text = txt .. ": " .. (Settings[set] and "ON" or "OFF")
+        b.Text = Lang[Settings.Language][nameKey] .. ": " .. (Settings[set] and "ON" or "OFF")
+        b.BackgroundColor3 = Settings[set] and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(45, 45, 45)
     end
     
     b.MouseButton1Click:Connect(function()
         Settings[set] = not Settings[set]
-        b.BackgroundColor3 = Settings[set] and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(45, 45, 45)
         updateText()
     end)
-    
-    Buttons[id] = {Btn = b, Key = nameKey, Update = updateText}
+    Buttons[id] = {Update = updateText}
     updateText()
 end
 
--- Refresh UI
+-- UI Refresh
 local function RefreshUI()
     for _, item in pairs(Buttons) do item.Update() end
     mainToggle.Text = MainFrame.Visible and Lang[Settings.Language].Menu or Lang[Settings.Language].MenuOpen
@@ -278,20 +286,17 @@ local function RefreshUI()
     FOVInput.PlaceholderText = Lang[Settings.Language].FOVPlace
 end
 
--- Create Buttons
 NewBtn("ESP", "ESP", 60, "ESP")
 NewBtn("Aimbot", "Aimbot", 110, "Aimbot")
 NewBtn("Team", "Team", 160, "TeamCheck")
-NewBtn("Wall", "Wall", 210, "WallCheck") -- Added Wall Check Button
+NewBtn("Wall", "Wall", 210, "WallCheck")
 NewBtn("Bright", "Bright", 260, "FullBright")
 NewBtn("FOV", "FOV", 310, "ShowFOV")
 
--- Language Switch Button
 local LangBtn = Instance.new("TextButton", MainFrame)
 LangBtn.Size = UDim2.new(1, -30, 0, 40); LangBtn.Position = UDim2.new(0, 15, 0, 360)
 LangBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60); LangBtn.TextColor3 = Color3.new(1, 1, 1)
-LangBtn.Font = Enum.Font.GothamBold
-LangBtn.Text = Lang[Settings.Language].Lang
+LangBtn.Font = Enum.Font.GothamBold; LangBtn.Text = Lang[Settings.Language].Lang
 styleElement(LangBtn, 6)
 
 LangBtn.MouseButton1Click:Connect(function()
@@ -300,13 +305,10 @@ LangBtn.MouseButton1Click:Connect(function()
     RefreshUI()
 end)
 
--- Main Toggle Function
-local function toggleGui()
+mainToggle.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
     mainToggle.Text = MainFrame.Visible and Lang[Settings.Language].Menu or Lang[Settings.Language].MenuOpen
-end
-
-mainToggle.MouseButton1Click:Connect(toggleGui)
-minBtn.MouseButton1Click:Connect(toggleGui)
+end)
+minBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; mainToggle.Text = Lang[Settings.Language].MenuOpen end)
 
 RefreshUI()

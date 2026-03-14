@@ -4,7 +4,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 
 local Window = Fluent:CreateWindow({
     Title = "misg Hub",
-    SubTitle = "Auto Farm No Key",
+    SubTitle = "No Key",
     TabWidth = 160,
     Size = UDim2.fromOffset(480, 360),
     Acrylic = false,
@@ -23,10 +23,12 @@ local player = game.Players.LocalPlayer
 local originalPos = nil
 local activeSpeed = 0.5
 
+-- // 1. STABLE AUTO-SAVE FUNCTION //
 local function forceSave()
-    SaveManager:Save("autoload")
+    SaveManager:Save("autoload") -- This specifically targets the 'autoload.json'
 end
 
+-- // 2. SERVER HOP //
 local function serverHop()
     local TeleportService = game:GetService("TeleportService")
     local HttpService = game:GetService("HttpService")
@@ -41,6 +43,7 @@ local function serverHop()
     end
 end
 
+-- // 3. MOBILE TOGGLE //
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "misgToggle"
 ScreenGui.ResetOnSpawn = false
@@ -60,9 +63,10 @@ ToggleImg.BackgroundTransparency = 1
 ToggleImg.Visible = false
 ToggleButton.MouseButton1Click:Connect(function() Window:Minimize() end)
 
+-- // 4. FARMING LOOP //
 task.spawn(function()
     while task.wait(0.5) do
-        if Options.AutoFarm and Options.AFKFarm then
+        if Options.AutoFarm and Options.AFKFarm then -- Ensure options exist
             if Options.AutoFarm.Value or Options.AFKFarm.Value then
                 local items = debrisFolder:GetChildren()
                 activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.5
@@ -94,9 +98,10 @@ task.spawn(function()
     end
 end)
 
+-- // 5. FARMING TAB //
 Tabs.Main:AddSection("Auto Farm Controls")
 Tabs.Main:AddToggle("AutoFarm", {Title = "Manual Auto-Farm", Default = false, Callback = forceSave})
-Tabs.Main:AddToggle("HopFarm", {Title = "AFK Farm (Auto-Hop)", Default = false, Callback = forceSave})
+Tabs.Main:AddToggle("AFKFarm", {Title = "AFK Farm (Auto-Hop)", Default = false, Callback = forceSave})
 
 Tabs.Main:AddSection("Farm Settings")
 Tabs.Main:AddInput("FarmSpeed", {
@@ -110,7 +115,7 @@ Tabs.Main:AddInput("FarmSpeed", {
 })
 
 Tabs.Main:AddButton({
-    Title = "Save Settings",
+    Title = "Force Save Settings",
     Description = "Click this if auto-save is slow",
     Callback = function()
         forceSave()
@@ -118,6 +123,7 @@ Tabs.Main:AddButton({
     end
 })
 
+-- // 6. SETTINGS TAB //
 local CustomSection = Tabs.Settings:AddSection("Toggle Button Customization")
 Tabs.Settings:AddInput("ToggleInput", {
     Title = "Text or Image ID",
@@ -138,17 +144,21 @@ Tabs.Settings:AddInput("ToggleInput", {
 Tabs.Settings:AddColorpicker("TextCol", {Title = "Text Color", Default = Color3.fromRGB(255, 255, 255), Callback = function(v) ToggleButton.TextColor3 = v forceSave() end})
 Tabs.Settings:AddColorpicker("BgCol", {Title = "Button Color", Default = Color3.fromRGB(30, 30, 30), Callback = function(v) ToggleButton.BackgroundColor3 = v forceSave() end})
 
+-- // 7. THE CRITICAL SAVE/LOAD INITIALIZATION //
 SaveManager:SetLibrary(Fluent)
 SaveManager:SetFolder("misgHub_Data")
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
+SaveManager:SetIgnoreIndexes({}) -- DO NOT IGNORE ANYTHING
 
+-- This creates the config section logic hidden in the background
 SaveManager:BuildConfigSection(Tabs.Settings) 
 
 Window:SelectTab(1)
 
+-- Final step: Load the config
 SaveManager:LoadAutoloadConfig()
 
+-- Sync the internal speed variable one last time after load
 task.delay(1.5, function()
     if Options.FarmSpeed then
         activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.5

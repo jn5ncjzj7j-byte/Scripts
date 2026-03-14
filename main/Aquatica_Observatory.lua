@@ -4,7 +4,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 
 local Window = Fluent:CreateWindow({
     Title = "misg Hub",
-    SubTitle = "Ocean Money Farm",
+    SubTitle = "Auto Farm No Key",
     TabWidth = 160,
     Size = UDim2.fromOffset(480, 360),
     Acrylic = false,
@@ -21,7 +21,7 @@ local Options = Fluent.Options
 local debrisFolder = workspace:WaitForChild("OceanDebris")
 local player = game.Players.LocalPlayer
 local originalPos = nil
-local activeSpeed = 0.2
+local activeSpeed = 0.5
 
 local function forceSave()
     SaveManager:Save("autoload")
@@ -61,11 +61,11 @@ ToggleImg.Visible = false
 ToggleButton.MouseButton1Click:Connect(function() Window:Minimize() end)
 
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.5) do
         if Options.AutoFarm and Options.AFKFarm then
             if Options.AutoFarm.Value or Options.AFKFarm.Value then
                 local items = debrisFolder:GetChildren()
-                activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.2
+                activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.5
                 
                 if #items > 0 then
                     if not originalPos then originalPos = player.Character:GetPivot() end
@@ -94,24 +94,24 @@ task.spawn(function()
     end
 end)
 
-Tabs.Main:AddSection("Auto Farm Money")
-Tabs.Main:AddToggle("AutoFarm", {Title = "Auto Farm", Default = false, Callback = forceSave})
-Tabs.Main:AddToggle("HopFarm", {Title = "Farm + Hop server", Default = false, Callback = forceSave})
+Tabs.Main:AddSection("Auto Farm Controls")
+Tabs.Main:AddToggle("AutoFarm", {Title = "Manual Auto-Farm", Default = false, Callback = forceSave})
+Tabs.Main:AddToggle("HopFarm", {Title = "AFK Farm (Auto-Hop)", Default = false, Callback = forceSave})
 
 Tabs.Main:AddSection("Farm Settings")
 Tabs.Main:AddInput("FarmSpeed", {
     Title = "Farm Speed", 
-    Default = "0.2", 
+    Default = "0.5", 
     Numeric = true, 
     Callback = function() 
-        activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.2
+        activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.5
         forceSave() 
     end
 })
 
 Tabs.Main:AddButton({
-    Title = "Save",
-    Description = "Click this for save",
+    Title = "Save Settings",
+    Description = "Click this if auto-save is slow",
     Callback = function()
         forceSave()
         Fluent:Notify({Title = "Success", Content = "Manual Save Complete!", Duration = 2})
@@ -139,7 +139,7 @@ Tabs.Settings:AddColorpicker("TextCol", {Title = "Text Color", Default = Color3.
 Tabs.Settings:AddColorpicker("BgCol", {Title = "Button Color", Default = Color3.fromRGB(30, 30, 30), Callback = function(v) ToggleButton.BackgroundColor3 = v forceSave() end})
 
 SaveManager:SetLibrary(Fluent)
-SaveManager:SetFolder("misgHuba6e79d6d-03fc-4eb6-b5db-1f712f15fee8_Data")
+SaveManager:SetFolder("misgHub_Data")
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 
@@ -151,6 +151,6 @@ SaveManager:LoadAutoloadConfig()
 
 task.delay(1.5, function()
     if Options.FarmSpeed then
-        activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.2
+        activeSpeed = tonumber(Options.FarmSpeed.Value) or 0.5
     end
 end)

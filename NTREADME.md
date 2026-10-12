@@ -30,15 +30,15 @@
 
 You can chain multiple commands together separated by commas `,` to create smooth, animated size sequences.
 
-### Command Syntax
+### Command Syntax & Default Speeds
 - **`[Number]`**: Sets the target size instantly (e.g., `1`).
-- **`..[Seconds]`**: Sets the delay/wait time between incremental steps (e.g., `..0.1`).
-- **`.![Step]`**: Specifies how much size to add per step (e.g., `.!0.1`).
-- **`!![Target]`**: Increments smoothly toward a target size using a default step of `0.5` (e.g., `!!5`).
-- **`!?`**: Dynamically targets the player's original baseline/starting size (e.g., `!!?` or `.!0.1!?`).
+- **`..[Seconds]`**: Sets the delay/wait time between incremental steps (e.g., `..0.1` sets the speed to wait **0.1 seconds** between updates). If you don't specify a delay, it defaults to **0.5 seconds**.
+- **`.![Step]`**: Specifies custom size increase increments per step (e.g., `.!0.1` increases the size by **0.1** each tick).
+- **`!![Target]`**: Increases size smoothly toward a target using **default values** (defaults to increasing by **0.5** every **0.5 seconds** if no custom `..` or `.!` speed was set beforehand). You can also combine it with a custom increment like `.!0.1, !!5` to make it increase slowly by `0.1`.
+- **`!?`**: Dynamically targets the player's original baseline/starting size for all selected body parts (Height, Width, Depth, Head), allowing you to return everyone back to normal smoothly (e.g., `!!?` or `.!0.1!?`).
 
 ### Example Sequences
 
-- **Grow to 5 smoothly:**
+- **Grow to 5 smoothly with custom speed (0.1s delay, 0.1 size increase):**
   ```text
   1, ..0.1, .!0.1, !!5

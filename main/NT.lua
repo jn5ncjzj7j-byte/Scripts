@@ -7,6 +7,9 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer.PlayerGui
 
+LocalPlayer.CameraMaxZoomDistance = math.huge
+LocalPlayer.CameraMinZoomDistance = 0.5
+
 if PlayerGui:FindFirstChild("SizeEditorGUI") then 
     PlayerGui.SizeEditorGUI:Destroy() 
 end
@@ -282,11 +285,13 @@ for _, partText in ipairs(bodyParts) do
     end)
 end
 
+-- SCALE INPUT BOX (ClearTextOnFocus set to false so typed text doesn't vanish when clicking back)
 local scaleBox = Instance.new("TextBox", frame)
 scaleBox.Size = UDim2.new(1, -20, 0, 42)
 scaleBox.Position = UDim2.new(0, 10, 0, 254)
 scaleBox.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 scaleBox.Text = "1"
+scaleBox.ClearTextOnFocus = false
 scaleBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 scaleBox.Font = Enum.Font.Gotham
 scaleBox.TextSize = 16
@@ -455,7 +460,7 @@ local function updatePlayerESPVisual(player)
         local tag = player.Character:FindFirstChild("ESPNameTag")
         if tag then
             tag.Enabled = espActive
-            local label = tag:FindFirstChildOfClass("TextLabel")
+            local label = tag:FindFirstChildOfClass("TextButton")
             if label then
                 label.TextColor3 = getNameColor(player)
             end
@@ -482,7 +487,7 @@ local function applyESP(player)
         billboard.Enabled = espActive 
         billboard.Parent = char
 
-        local label = Instance.new("TextLabel", billboard)
+        local label = Instance.new("TextButton", billboard)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
         label.Text = player.DisplayName .. "\n(@" .. player.Name .. ")"
@@ -493,6 +498,12 @@ local function applyESP(player)
         local stroke = Instance.new("UIStroke", label)
         stroke.Color = Color3.new(0, 0, 0)
         stroke.Thickness = 2
+
+        label.Activated:Connect(function()
+            selectedPlayers[player.Name] = not selectedPlayers[player.Name] and true or nil
+            updateList()
+            updatePlayerESPVisual(player)
+        end)
     end
     if player.Character then setupCharacter(player.Character) end
     player.CharacterAdded:Connect(function(char)
@@ -547,34 +558,104 @@ updateList = function()
     end
 end
 
-local function applySize(target, inputNum)
-    local useId = _G.DetectedSizeID
-    POST = POST or ReplicatedStorage:FindFirstChild("POST")
-    if not target or not useId or not POST then return end
-    for partName, enabled in pairs(selectedParts) do
-        if enabled then 
-            pcall(function()
-                POST:FireServer(useId, "UpdateScale", target, partName, inputNum * 100)
-            end)
+local function runScaleSequence(inputText, targetsTable)
+    task.spawn(function()
+        local tokens = {}
+        for token in inputText:gmatch("[^,]+") do
+            local trimmed = token:match("^%s*(.-)%s*$")
+            if trimmed ~= "" then
+                table.insert(tokens, trimmed)
+            end
         end
-    end
+
+        local function applyToAllTargets(val)
+            for _, p in ipairs(targetsTable) do
+                local useId = _G.DetectedSizeID
+                local remote = ReplicatedStorage:FindFirstChild("POST")
+                if p and useId and remote then
+                    for partName, enabled in pairs(selectedParts) do
+                        if enabled then
+                            pcall(function()
+                                remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+
+        local currentSize = nil
+        local pendingDelay = 0.5
+        local i = 1
+
+        while i <= #tokens do
+            local t = tokens[i]
+
+            if t:sub(1, 2) == ".." and not t:find("!!") and not t:find("!") then
+                pendingDelay = tonumber(t:sub(3)) or 0.5
+                i = i + 1
+
+            elseif t:sub(1, 2) == ".!" then
+                local stepAdd = tonumber(t:sub(3)) or 0.5
+                local targetLimit = nil
+                
+                if tokens[i+1] and tokens[i+1]:sub(1, 2) == "!!" then
+                    targetLimit = tonumber(tokens[i+1]:sub(3))
+                    i = i + 2
+                else
+                    i = i + 1
+                end
+
+                if currentSize and targetLimit then
+                    while currentSize < targetLimit do
+                        task.wait(pendingDelay)
+                        currentSize = currentSize + stepAdd
+                        if currentSize > targetLimit then currentSize = targetLimit end
+                        applyToAllTargets(currentSize)
+                    end
+                end
+
+            elseif t:sub(1, 2) == "!!" then
+                local targetLimit = tonumber(t:sub(3))
+                if currentSize and targetLimit then
+                    while currentSize < targetLimit do
+                        task.wait(pendingDelay)
+                        currentSize = currentSize + 0.5
+                        if currentSize > targetLimit then currentSize = targetLimit end
+                        applyToAllTargets(currentSize)
+                    end
+                end
+                i = i + 1
+
+            else
+                local num = tonumber(t)
+                if num then
+                    if currentSize then
+                        task.wait(pendingDelay)
+                    end
+                    currentSize = num
+                    applyToAllTargets(currentSize)
+                    pendingDelay = 0.5
+                end
+                i = i + 1
+            end
+        end
+    end)
 end
 
 applyBtn.MouseButton1Click:Connect(function()
-    local val = tonumber(scaleBox.Text) or 1
+    local targets = {}
     for name, _ in pairs(selectedPlayers) do
         local p = Players:FindFirstChild(name)
-        if p then 
-            task.spawn(applySize, p, val) 
-        end
+        if p then table.insert(targets, p) end
+    end
+    if #targets > 0 then
+        runScaleSequence(scaleBox.Text, targets)
     end
 end)
 
 allBtn.MouseButton1Click:Connect(function()
-    local val = tonumber(scaleBox.Text) or 1
-    for _, p in ipairs(Players:GetPlayers()) do
-        task.spawn(applySize, p, val)
-    end
+    runScaleSequence(scaleBox.Text, Players:GetPlayers())
 end)
 
 loopSelectedBtn.MouseButton1Click:Connect(function()
@@ -604,11 +685,25 @@ RunService.Heartbeat:Connect(function()
     if loopSelected then
         for name, _ in pairs(selectedPlayers) do
             local p = Players:FindFirstChild(name)
-            if p then task.spawn(applySize, p, val) end
+            if p then
+                for partName, enabled in pairs(selectedParts) do
+                    if enabled then
+                        pcall(function()
+                            ReplicatedStorage.POST:FireServer(_G.DetectedSizeID, "UpdateScale", p, partName, val * 100)
+                        end)
+                    end
+                end
+            end
         end
     elseif loopEveryone then
         for _, p in ipairs(Players:GetPlayers()) do
-            task.spawn(applySize, p, val)
+            for partName, enabled in pairs(selectedParts) do
+                if enabled then
+                    pcall(function()
+                        ReplicatedStorage.POST:FireServer(_G.DetectedSizeID, "UpdateScale", p, partName, val * 100)
+                    end)
+                end
+            end
         end
     end
 end)

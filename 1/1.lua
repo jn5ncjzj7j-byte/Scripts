@@ -1,7 +1,7 @@
 local ZM  = game.PlaceId == 14419907512
 local NT  = game.PlaceId == 4655652068
 local ADT = game.PlaceId == 16389395869
-local DiscordLink = "https://discord.gg/yourlink" -- Change this to your actual link
+local DiscordLink = "https://discord.gg/dZjcYQN9xe" -- Discord link
 
 if not game:IsLoaded() then
     game.Loaded:Wait()

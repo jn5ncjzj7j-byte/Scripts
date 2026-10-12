@@ -1,4 +1,4 @@
-# MISG Hub - Roblox Size Editor GUI
+# MISG Hub - NOOBTRAIN ADVANCED Size Editor
 
 **MISG Hub** is a feature-rich, sleek Roblox script designed for manipulating player sizes, body scales, and head dimensions dynamically using custom sequence commands. It features an interactive UI with smooth animations, mobile-friendly dragging, player selection via ESP or a search menu, and a powerful size-sequencing parser.
 

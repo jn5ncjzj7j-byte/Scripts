@@ -1,4 +1,3 @@
--- 0.00.13
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -65,6 +64,17 @@ gui.Name = "SizeEditorGUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PlayerGui
+
+-- STATUS DISPLAY
+local seqStatusLabel = Instance.new("TextLabel", gui)
+seqStatusLabel.Size = UDim2.new(0, 240, 0, 42)
+seqStatusLabel.Position = UDim2.new(1, -345, 1, -55)
+seqStatusLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+seqStatusLabel.Text = "add: -, time: -, ready"
+seqStatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+seqStatusLabel.Font = Enum.Font.GothamBold
+seqStatusLabel.TextScaled = true
+styleElement(seqStatusLabel, 21)
 
 local floatingBtn = Instance.new("TextButton", gui)
 floatingBtn.Size = UDim2.new(0, 80, 0, 42)
@@ -158,6 +168,7 @@ listLayout.Padding = UDim.new(0, 6)
 
 smoothOpen(frame)
 smoothOpen(floatingBtn)
+smoothOpen(seqStatusLabel)
 
 local function alignPopupToRight()
     playerPopup.Position = UDim2.new(
@@ -220,6 +231,7 @@ applyMobileDrag(frame, titleBar)
 applyMobileDrag(playerPopup, popupHeader)
 applyMobileDrag(playerPopup, searchBox)
 applyMobileDrag(floatingBtn)
+applyMobileDrag(seqStatusLabel)
 
 local selectPlayerBtn = Instance.new("TextButton", frame)
 selectPlayerBtn.Size = UDim2.new(1, -20, 0, 42)
@@ -286,7 +298,6 @@ for _, partText in ipairs(bodyParts) do
     end)
 end
 
--- SCALE INPUT BOX (ClearTextOnFocus set to false so typed text doesn't vanish when clicking back)
 local scaleBox = Instance.new("TextBox", frame)
 scaleBox.Size = UDim2.new(1, -20, 0, 42)
 scaleBox.Position = UDim2.new(0, 10, 0, 254)
@@ -461,7 +472,7 @@ local function updatePlayerESPVisual(player)
         local tag = player.Character:FindFirstChild("ESPNameTag")
         if tag then
             tag.Enabled = espActive
-            local label = tag:FindFirstChildOfClass("TextButton")
+            local label = tag:FindFirstChildOfClass("TextLabel")
             if label then
                 label.TextColor3 = getNameColor(player)
             end
@@ -469,10 +480,11 @@ local function updatePlayerESPVisual(player)
     end
 end
 
+-- ESP & CHARACTER CLICK SELECTION SETUP
 local function applyESP(player)
     if player == LocalPlayer then return end
     local function setupCharacter(char)
-        local highlight = Instance.new("Highlight")
+        local highlight = char:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
         highlight.Name = "ESPHighlight"
         highlight.FillColor = getESPColor(player)
         highlight.FillTransparency = 0.5
@@ -480,15 +492,15 @@ local function applyESP(player)
         highlight.Enabled = espActive 
         highlight.Parent = char
 
-        local billboard = Instance.new("BillboardGui")
+        local billboard = char:FindFirstChild("ESPNameTag") or Instance.new("BillboardGui")
         billboard.Name = "ESPNameTag"
-        billboard.Size = UDim2.new(0, 180, 0, 40)
-        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.Size = UDim2.new(0, 200, 0, 45)
+        billboard.StudsOffset = Vector3.new(0, 3.5, 0)
         billboard.AlwaysOnTop = true
         billboard.Enabled = espActive 
         billboard.Parent = char
 
-        local label = Instance.new("TextButton", billboard)
+        local label = billboard:FindFirstChildOfClass("TextLabel") or Instance.new("TextLabel", billboard)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
         label.Text = player.DisplayName .. "\n(@" .. player.Name .. ")"
@@ -496,18 +508,41 @@ local function applyESP(player)
         label.Font = Enum.Font.GothamBold
         label.TextScaled = true 
 
-        local stroke = Instance.new("UIStroke", label)
-        stroke.Color = Color3.new(0, 0, 0)
-        stroke.Thickness = 2
+        if not label:FindFirstChildOfClass("UIStroke") then
+            local stroke = Instance.new("UIStroke", label)
+            stroke.Color = Color3.new(0, 0, 0)
+            stroke.Thickness = 2
+        end
 
-        label.Activated:Connect(function()
-            selectedPlayers[player.Name] = not selectedPlayers[player.Name] and true or nil
-            updateList()
-            updatePlayerESPVisual(player)
-        end)
+        -- Make every body part inside the character clickable to select/deselect the player when tapped
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local clickDetector = part:FindFirstChild("PlayerSelectClickDetector") or Instance.new("ClickDetector")
+                clickDetector.Name = "PlayerSelectClickDetector"
+                clickDetector.MaxActivationDistance = 32
+                clickDetector.Parent = part
+
+                if clickDetector:GetAttribute("Connected") ~= true then
+                    clickDetector:SetAttribute("Connected", true)
+                    clickDetector.MouseClick:Connect(function(clicker)
+                        if clicker == LocalPlayer then
+                            if selectedPlayers[player.Name] then
+                                selectedPlayers[player.Name] = nil
+                            else
+                                selectedPlayers[player.Name] = true
+                            end
+                            updateList()
+                            updatePlayerESPVisual(player)
+                        end
+                    end)
+                end
+            end
+        end
     end
+
     if player.Character then setupCharacter(player.Character) end
     player.CharacterAdded:Connect(function(char)
+        task.wait(0.3)
         setupCharacter(char)
         updatePlayerESPVisual(player)
     end)
@@ -559,6 +594,7 @@ updateList = function()
     end
 end
 
+-- ADVANCED SEQUENCE PARSER WITH AUTO STATUS RESET
 local function runScaleSequence(inputText, targetsTable)
     task.spawn(function()
         local tokens = {}
@@ -609,22 +645,28 @@ local function runScaleSequence(inputText, targetsTable)
 
                 if currentSize and targetLimit then
                     while currentSize < targetLimit do
+                        local left = targetLimit - currentSize
+                        seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, %.1f size left", stepAdd, pendingDelay, left)
                         task.wait(pendingDelay)
                         currentSize = currentSize + stepAdd
                         if currentSize > targetLimit then currentSize = targetLimit end
                         applyToAllTargets(currentSize)
                     end
+                    seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, 0.0 size left", stepAdd, pendingDelay)
                 end
 
             elseif t:sub(1, 2) == "!!" then
                 local targetLimit = tonumber(t:sub(3))
                 if currentSize and targetLimit then
                     while currentSize < targetLimit do
+                        local left = targetLimit - currentSize
+                        seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, %.1f size left", pendingDelay, left)
                         task.wait(pendingDelay)
                         currentSize = currentSize + 0.5
                         if currentSize > targetLimit then currentSize = targetLimit end
                         applyToAllTargets(currentSize)
                     end
+                    seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, 0.0 size left", pendingDelay)
                 end
                 i = i + 1
 
@@ -632,15 +674,20 @@ local function runScaleSequence(inputText, targetsTable)
                 local num = tonumber(t)
                 if num then
                     if currentSize then
+                        seqStatusLabel.Text = string.format("add: -, time: %.1f, waiting", pendingDelay)
                         task.wait(pendingDelay)
                     end
                     currentSize = num
                     applyToAllTargets(currentSize)
+                    seqStatusLabel.Text = string.format("size: %.1f applied", currentSize)
                     pendingDelay = 0.5
                 end
                 i = i + 1
             end
         end
+
+        task.wait(2)
+        seqStatusLabel.Text = "add: -, time: -, ready"
     end)
 end
 

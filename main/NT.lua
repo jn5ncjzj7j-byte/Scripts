@@ -58,6 +58,7 @@ local LOOP_DELAY = 0.05
 _G.DetectedSizeID = _G.DetectedSizeID or nil
 local idFoundState = false
 local updateList
+local updatePlayerESPVisual
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "SizeEditorGUI"
@@ -70,7 +71,7 @@ local seqStatusLabel = Instance.new("TextLabel", gui)
 seqStatusLabel.Size = UDim2.new(0, 240, 0, 42)
 seqStatusLabel.Position = UDim2.new(1, -345, 1, -55)
 seqStatusLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-seqStatusLabel.Text = "add: -, time: -, ready"
+seqStatusLabel.Text = "ready"
 seqStatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 seqStatusLabel.Font = Enum.Font.GothamBold
 seqStatusLabel.TextScaled = true
@@ -268,7 +269,9 @@ styleElement(cancelBtn, 12)
 
 cancelBtn.MouseButton1Click:Connect(function()
     selectedPlayers = {}
-    for _, p in ipairs(Players:GetPlayers()) do updatePlayerESPVisual(p) end
+    for _, p in ipairs(Players:GetPlayers()) do 
+        updatePlayerESPVisual(p) 
+    end
     updateList()
 end)
 
@@ -462,7 +465,7 @@ local function getNameColor(player)
     return selectedPlayers[player.Name] and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(255, 255, 255)
 end
 
-local function updatePlayerESPVisual(player)
+updatePlayerESPVisual = function(player)
     if player and player.Character then
         local highlight = player.Character:FindFirstChild("ESPHighlight")
         if highlight then
@@ -480,7 +483,7 @@ local function updatePlayerESPVisual(player)
     end
 end
 
--- ESP & CHARACTER CLICK SELECTION SETUP
+-- ESP & CHARACTER CLICK SELECTION SETUP (INFINITE DISTANCE)
 local function applyESP(player)
     if player == LocalPlayer then return end
     local function setupCharacter(char)
@@ -514,12 +517,11 @@ local function applyESP(player)
             stroke.Thickness = 2
         end
 
-        -- Make every body part inside the character clickable to select/deselect the player when tapped
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 local clickDetector = part:FindFirstChild("PlayerSelectClickDetector") or Instance.new("ClickDetector")
                 clickDetector.Name = "PlayerSelectClickDetector"
-                clickDetector.MaxActivationDistance = 32
+                clickDetector.MaxActivationDistance = math.huge
                 clickDetector.Parent = part
 
                 if clickDetector:GetAttribute("Connected") ~= true then
@@ -594,9 +596,40 @@ updateList = function()
     end
 end
 
--- ADVANCED SEQUENCE PARSER WITH AUTO STATUS RESET
-local function runScaleSequence(inputText, targetsTable)
+-- HELPER TO FETCH INITIAL BASELINE SIZE CACHED AT START OF SEQUENCE
+local function getPlayerInitialSize(p)
+    local fallback = 1
+    local success, result = pcall(function()
+        if p and p.Character then
+            local humanoid = p.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                local scale = humanoid:FindFirstChild("BodyHeightScale")
+                if scale then
+                    return scale.Value
+                end
+            end
+        end
+    end)
+    if success and result then
+        return result
+    end
+    return fallback
+end
+
+-- FULLY SYNCHRONIZED MULTI-PART PARSER
+local function runScaleSequence(inputText, targetsTable, modeType)
     task.spawn(function()
+        if modeType == "Select" then
+            seqStatusLabel.Text = "Applied Size To Select"
+        else
+            seqStatusLabel.Text = "Applied Size To All"
+        end
+
+        local unifiedInitialSize = 1
+        if #targetsTable > 0 then
+            unifiedInitialSize = getPlayerInitialSize(targetsTable[1])
+        end
+
         local tokens = {}
         for token in inputText:gmatch("[^,]+") do
             local trimmed = token:match("^%s*(.-)%s*$")
@@ -606,15 +639,17 @@ local function runScaleSequence(inputText, targetsTable)
         end
 
         local function applyToAllTargets(val)
-            for _, p in ipairs(targetsTable) do
-                local useId = _G.DetectedSizeID
-                local remote = ReplicatedStorage:FindFirstChild("POST")
-                if p and useId and remote then
-                    for partName, enabled in pairs(selectedParts) do
-                        if enabled then
-                            pcall(function()
-                                remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
-                            end)
+            local useId = _G.DetectedSizeID
+            local remote = ReplicatedStorage:FindFirstChild("POST")
+            if useId and remote then
+                for _, p in ipairs(targetsTable) do
+                    if p then
+                        for partName, enabled in pairs(selectedParts) do
+                            if enabled then
+                                pcall(function()
+                                    remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
+                                end)
+                            end
                         end
                     end
                 end
@@ -634,40 +669,73 @@ local function runScaleSequence(inputText, targetsTable)
 
             elseif t:sub(1, 2) == ".!" then
                 local stepAdd = tonumber(t:sub(3)) or 0.5
-                local targetLimit = nil
+                local targetLimitToken = nil
                 
                 if tokens[i+1] and tokens[i+1]:sub(1, 2) == "!!" then
-                    targetLimit = tonumber(tokens[i+1]:sub(3))
+                    targetLimitToken = tokens[i+1]:sub(3)
                     i = i + 2
                 else
                     i = i + 1
                 end
 
-                if currentSize and targetLimit then
-                    while currentSize < targetLimit do
-                        local left = targetLimit - currentSize
-                        seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, %.1f size left", stepAdd, pendingDelay, left)
-                        task.wait(pendingDelay)
-                        currentSize = currentSize + stepAdd
-                        if currentSize > targetLimit then currentSize = targetLimit end
-                        applyToAllTargets(currentSize)
+                if currentSize then
+                    local targetLimit = 5
+                    if targetLimitToken == "?" then
+                        targetLimit = unifiedInitialSize
+                    elseif targetLimitToken then
+                        targetLimit = tonumber(targetLimitToken) or 5
                     end
-                    seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, 0.0 size left", stepAdd, pendingDelay)
+
+                    local tempSize = currentSize
+                    local isShrinking = currentSize > targetLimit
+                    while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
+                        local left = math.abs(targetLimit - tempSize)
+                        if left < stepAdd then
+                            tempSize = targetLimit
+                        else
+                            tempSize = isShrinking and (tempSize - stepAdd) or (tempSize + stepAdd)
+                        end
+                        
+                        if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
+                        if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
+                        
+                        seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, %.1f size left", stepAdd, pendingDelay, math.abs(targetLimit - tempSize))
+                        applyToAllTargets(tempSize)
+                        task.wait(pendingDelay)
+                    end
+                    currentSize = targetLimit
                 end
 
             elseif t:sub(1, 2) == "!!" then
-                local targetLimit = tonumber(t:sub(3))
-                if currentSize and targetLimit then
-                    while currentSize < targetLimit do
-                        local left = targetLimit - currentSize
-                        seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, %.1f size left", pendingDelay, left)
-                        task.wait(pendingDelay)
-                        currentSize = currentSize + 0.5
-                        if currentSize > targetLimit then currentSize = targetLimit end
-                        applyToAllTargets(currentSize)
-                    end
-                    seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, 0.0 size left", pendingDelay)
+                local targetLimitToken = t:sub(3)
+                local targetLimit = 5
+                if targetLimitToken == "?" then
+                    targetLimit = unifiedInitialSize
+                elseif targetLimitToken then
+                    targetLimit = tonumber(targetLimitToken) or 5
                 end
+
+                if currentSize and targetLimit then
+                    local tempSize = currentSize
+                    local defaultStep = 0.5
+                    local isShrinking = currentSize > targetLimit
+                    while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
+                        local left = math.abs(targetLimit - tempSize)
+                        if left < defaultStep then
+                            tempSize = targetLimit
+                        else
+                            tempSize = isShrinking and (tempSize - defaultStep) or (tempSize + defaultStep)
+                        end
+
+                        if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
+                        if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
+
+                        seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, %.1f size left", pendingDelay, math.abs(targetLimit - tempSize))
+                        applyToAllTargets(tempSize)
+                        task.wait(pendingDelay)
+                    end
+                end
+                currentSize = targetLimit
                 i = i + 1
 
             else
@@ -687,7 +755,7 @@ local function runScaleSequence(inputText, targetsTable)
         end
 
         task.wait(2)
-        seqStatusLabel.Text = "add: -, time: -, ready"
+        seqStatusLabel.Text = "ready"
     end)
 end
 
@@ -698,12 +766,12 @@ applyBtn.MouseButton1Click:Connect(function()
         if p then table.insert(targets, p) end
     end
     if #targets > 0 then
-        runScaleSequence(scaleBox.Text, targets)
+        runScaleSequence(scaleBox.Text, targets, "Select")
     end
 end)
 
 allBtn.MouseButton1Click:Connect(function()
-    runScaleSequence(scaleBox.Text, Players:GetPlayers())
+    runScaleSequence(scaleBox.Text, Players:GetPlayers(), "All")
 end)
 
 loopSelectedBtn.MouseButton1Click:Connect(function()

@@ -7,7 +7,6 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer.PlayerGui
 
--- Safe GUI cleanup
 if PlayerGui:FindFirstChild("SizeEditorGUI") then 
     PlayerGui.SizeEditorGUI:Destroy() 
 end
@@ -18,9 +17,8 @@ local function styleElement(obj, radius)
     corner.Parent = obj
 end
 
--- ANIMATION HELPER (UIScale based smooth open/close)
-local tweenInfoOpen = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local tweenInfoClose = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local tweenInfoFast = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local tweenInfoClose = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
 local function smoothOpen(uiObject)
     local uiScale = uiObject:FindFirstChildOfClass("UIScale")
@@ -29,7 +27,7 @@ local function smoothOpen(uiObject)
     end
     uiScale.Scale = 0
     uiObject.Visible = true
-    local tween = TweenService:Create(uiScale, tweenInfoOpen, {Scale = 1})
+    local tween = TweenService:Create(uiScale, tweenInfoFast, {Scale = 1})
     tween:Play()
 end
 
@@ -43,29 +41,27 @@ local function smoothClose(uiObject, callback)
     tween:Play()
     tween.Completed:Connect(function()
         uiObject.Visible = false
-        uiScale.Scale = 1 -- Reset scale for next opening
+        uiScale.Scale = 1
         if callback then callback() end
     end)
 end
 
--- Variables
 local selectedPlayers = {} 
-local espActive = false      -- OFF AT START
-local loopSelected = false   -- OFF AT START
-local loopEveryone = false   -- OFF AT START
+local espActive = false      
+local loopSelected = false   
+local loopEveryone = false   
 local lastLoopUpdate = 0
-local LOOP_DELAY = 0.05      -- Fast loop speed
+local LOOP_DELAY = 0.05      
 _G.DetectedSizeID = _G.DetectedSizeID or nil
 local idFoundState = false
+local updateList
 
--- MAIN SCREEN GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "SizeEditorGUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PlayerGui
 
--- FLOATING TOGGLE BUTTON ("MISG" at bottom right)
 local floatingBtn = Instance.new("TextButton", gui)
 floatingBtn.Size = UDim2.new(0, 80, 0, 42)
 floatingBtn.Position = UDim2.new(1, -95, 1, -55)
@@ -77,7 +73,6 @@ floatingBtn.TextSize = 16
 floatingBtn.Active = true
 styleElement(floatingBtn, 21)
 
--- MAIN HUB FRAME ("MISG HUB")
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 310, 0, 520)
 frame.Position = UDim2.new(0.5, -160, 0.5, -260)
@@ -85,7 +80,6 @@ frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 frame.Active = true
 styleElement(frame, 16)
 
--- TITLE BAR ("MISG HUB" & Minimize)
 local titleBar = Instance.new("Frame", frame)
 titleBar.Size = UDim2.new(1, 0, 0, 48)
 titleBar.BackgroundTransparency = 1
@@ -111,10 +105,9 @@ minBtn.Font = Enum.Font.GothamBold
 minBtn.TextSize = 18
 styleElement(minBtn, 17)
 
--- SELECT PLAYER POPUP FRAME
 local playerPopup = Instance.new("Frame", gui)
 playerPopup.Size = UDim2.new(0, 280, 0, 260)
-playerPopup.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset + frame.Size.X.Offset + 10, frame.Position.Y.Scale, frame.Position.Y.Offset)
+playerPopup.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset + frame.Size.X.Offset + 12, frame.Position.Y.Scale, frame.Position.Y.Offset)
 playerPopup.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 playerPopup.Visible = false
 playerPopup.Active = true
@@ -159,11 +152,9 @@ playerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
 local listLayout = Instance.new("UIListLayout", playerList)
 listLayout.Padding = UDim.new(0, 6)
 
--- Run startup opening animations
 smoothOpen(frame)
 smoothOpen(floatingBtn)
 
--- HELPER TO ALIGN POPUP RIGHT NEXT TO MAIN FRAME ON SHOW
 local function alignPopupToRight()
     playerPopup.Position = UDim2.new(
         frame.Position.X.Scale, 
@@ -173,7 +164,6 @@ local function alignPopupToRight()
     )
 end
 
--- SEQUENTIAL CLOSE FUNCTION (Search Popup First, then Main Frame)
 local isClosing = false
 local function closeAllSequentially()
     if isClosing then return end
@@ -192,7 +182,6 @@ local function closeAllSequentially()
     end
 end
 
--- ADVANCED DRAG ENGINE
 local function applyMobileDrag(targetFrame, dragHandle)
     dragHandle = dragHandle or targetFrame
     local dragging = false
@@ -228,7 +217,6 @@ applyMobileDrag(playerPopup, popupHeader)
 applyMobileDrag(playerPopup, searchBox)
 applyMobileDrag(floatingBtn)
 
--- 1. SELECT PLAYER BUTTON
 local selectPlayerBtn = Instance.new("TextButton", frame)
 selectPlayerBtn.Size = UDim2.new(1, -20, 0, 42)
 selectPlayerBtn.Position = UDim2.new(0, 10, 0, 54)
@@ -243,7 +231,7 @@ selectPlayerBtn.MouseButton1Click:Connect(function()
     if playerPopup.Visible then
         smoothClose(playerPopup)
     else
-        alignPopupToRight() -- Automatically position directly to the right of main frame
+        alignPopupToRight()
         smoothOpen(playerPopup)
     end
 end)
@@ -252,7 +240,6 @@ popupClose.MouseButton1Click:Connect(function()
     smoothClose(playerPopup)
 end)
 
--- 2. DESELECT ALL PLAYER BUTTON
 local cancelBtn = Instance.new("TextButton", frame)
 cancelBtn.Size = UDim2.new(1, -20, 0, 42)
 cancelBtn.Position = UDim2.new(0, 10, 0, 104)
@@ -263,7 +250,12 @@ cancelBtn.Font = Enum.Font.Gotham
 cancelBtn.TextSize = 15
 styleElement(cancelBtn, 12)
 
--- 3. BODY PARTS GRID
+cancelBtn.MouseButton1Click:Connect(function()
+    selectedPlayers = {}
+    for _, p in ipairs(Players:GetPlayers()) do updatePlayerESPVisual(p) end
+    updateList()
+end)
+
 local bodyParts = {"Height", "Width", "Depth", "Head"}
 local selectedParts = {Height = true, Width = true, Depth = true, Head = true}
 local partsFrame = Instance.new("Frame", frame)
@@ -290,7 +282,6 @@ for _, partText in ipairs(bodyParts) do
     end)
 end
 
--- 4. SCALE INPUT BOX
 local scaleBox = Instance.new("TextBox", frame)
 scaleBox.Size = UDim2.new(1, -20, 0, 42)
 scaleBox.Position = UDim2.new(0, 10, 0, 254)
@@ -301,7 +292,6 @@ scaleBox.Font = Enum.Font.Gotham
 scaleBox.TextSize = 16
 styleElement(scaleBox, 12)
 
--- 5. APPLY TO SELECT & LOOP
 local applySelectContainer = Instance.new("Frame", frame)
 applySelectContainer.Size = UDim2.new(1, -20, 0, 44)
 applySelectContainer.Position = UDim2.new(0, 10, 0, 304)
@@ -331,7 +321,6 @@ loopSelectedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 loopSelectedBtn.Font = Enum.Font.GothamBold
 loopSelectedBtn.TextSize = 12
 
--- 6. APPLY TO ALL & LOOP
 local applyAllContainer = Instance.new("Frame", frame)
 applyAllContainer.Size = UDim2.new(1, -20, 0, 44)
 applyAllContainer.Position = UDim2.new(0, 10, 0, 356)
@@ -361,7 +350,6 @@ loopEveryoneBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 loopEveryoneBtn.Font = Enum.Font.GothamBold
 loopEveryoneBtn.TextSize = 12
 
--- 7. FOOTER SECTION
 local footerFrame = Instance.new("Frame", frame)
 footerFrame.Size = UDim2.new(1, -20, 0, 42)
 footerFrame.Position = UDim2.new(0, 10, 0, 460)
@@ -380,14 +368,13 @@ sizeIdLabel.TextXAlignment = Enum.TextXAlignment.Left
 local espToggle = Instance.new("TextButton", footerFrame)
 espToggle.Size = UDim2.new(0, 80, 0, 36)
 espToggle.Position = UDim2.new(1, -80, 0.5, -18)
-espToggle.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- BLACK AT START (OFF)
+espToggle.BackgroundColor3 = Color3.fromRGB(0, 0, 0) 
 espToggle.Text = "ESP"
 espToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
 espToggle.Font = Enum.Font.Gotham
 espToggle.TextSize = 15
 styleElement(espToggle, 16)
 
--- ANIMATED "Find ID..." STATUS LOOP
 task.spawn(function()
     local dots = {".", "..", "..."}
     local idx = 1
@@ -401,7 +388,6 @@ task.spawn(function()
     end
 end)
 
--- REMOTE SNIFFER
 local POST = nil
 task.spawn(function()
     pcall(function()
@@ -426,7 +412,6 @@ task.spawn(function()
     end)
 end)
 
--- AUTO-CLICK RESET BUTTON AFTER 4 SECONDS TO FIND ID
 task.spawn(function()
     task.wait(4)
     pcall(function()
@@ -445,7 +430,6 @@ task.spawn(function()
         end
     end)
     
-    -- Timeout check after 7 seconds total if ID is still not found
     task.wait(3)
     if not _G.DetectedSizeID then
         idFoundState = true
@@ -453,7 +437,6 @@ task.spawn(function()
     end
 end)
 
--- ESP FUNCTIONS
 local function getESPColor(player)
     return selectedPlayers[player.Name] and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 255, 255)
 end
@@ -512,11 +495,13 @@ local function applyESP(player)
         stroke.Thickness = 2
     end
     if player.Character then setupCharacter(player.Character) end
-    player.CharacterAdded:Connect(setupCharacter)
+    player.CharacterAdded:Connect(function(char)
+        setupCharacter(char)
+        updatePlayerESPVisual(player)
+    end)
 end
 
--- PLAYER LIST FUNCTION
-local function updateList()
+updateList = function()
     local filter = searchBox.Text:lower()
     
     for _, child in pairs(playerList:GetChildren()) do 
@@ -544,7 +529,7 @@ local function updateList()
             
             local isSelected = selectedPlayers[player.Name]
             if isSelected then
-                btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                btn.BackgroundColor3 = Color3.fromRGB(30, 120, 225)
             elseif isMe then
                 btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
             else
@@ -562,7 +547,6 @@ local function updateList()
     end
 end
 
--- APPLY SCALE LOGIC
 local function applySize(target, inputNum)
     local useId = _G.DetectedSizeID
     POST = POST or ReplicatedStorage:FindFirstChild("POST")
@@ -586,7 +570,6 @@ applyBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- FIRES TO ALL SIMULTANEOUSLY
 allBtn.MouseButton1Click:Connect(function()
     local val = tonumber(scaleBox.Text) or 1
     for _, p in ipairs(Players:GetPlayers()) do
@@ -594,7 +577,6 @@ allBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- LOOP TOGGLE LISTENERS
 loopSelectedBtn.MouseButton1Click:Connect(function()
     loopSelected = not loopSelected
     loopSelectedBtn.Text = loopSelected and "LOOP 🟢" or "LOOP 🔴"
@@ -613,7 +595,6 @@ loopEveryoneBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- FAST EXECUTION LOOP
 RunService.Heartbeat:Connect(function()
     if not loopSelected and not loopEveryone then return end
     if os.clock() - lastLoopUpdate < LOOP_DELAY then return end
@@ -630,13 +611,6 @@ RunService.Heartbeat:Connect(function()
             task.spawn(applySize, p, val)
         end
     end
-end)
-
--- BUTTON HANDLERS
-cancelBtn.MouseButton1Click:Connect(function()
-    selectedPlayers = {}
-    for _, p in ipairs(Players:GetPlayers()) do updatePlayerESPVisual(p) end
-    updateList()
 end)
 
 espToggle.MouseButton1Click:Connect(function()
@@ -660,6 +634,15 @@ end)
 searchBox:GetPropertyChangedSignal("Text"):Connect(updateList)
 
 for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
-Players.PlayerAdded:Connect(function(p) applyESP(p); updateList() end)
-Players.PlayerRemoving:Connect(function(p) selectedPlayers[p.Name] = nil; updateList() end)
+
+Players.PlayerAdded:Connect(function(p) 
+    applyESP(p)
+    updateList() 
+end)
+
+Players.PlayerRemoving:Connect(function(p) 
+    selectedPlayers[p.Name] = nil
+    updateList() 
+end)
+
 updateList()

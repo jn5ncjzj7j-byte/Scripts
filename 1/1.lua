@@ -8,9 +8,9 @@ if not game:IsLoaded() then
 end
 
 if ZM then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/ZM.lua", true))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/ZM.lua", true))()
 elseif NT then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/NT.lua", true))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/NT.lua", true))()
 elseif ADT then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqLgnd/Utilities/main/DustyTrip", true))()
 else

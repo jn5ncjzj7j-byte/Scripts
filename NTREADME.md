@@ -1,38 +1,44 @@
-# MISG Hub - Advanced Roblox Size Editor GUI
+# MISG Hub - Roblox Size Editor GUI
 
-A sleek, responsive, and mobile-friendly GUI script designed for Roblox size editor games. It features automatic RemoteEvent detection, per-part scaling, live ESP name tags, and advanced custom size sequencing.
-
----
-
-## 🌟 Key Features
-
-* **Snappy UI Animations:** Smooth pop-in and pop-out scaling animations with zero sluggish delays.
-* **Smart Search Hub:** The player selection menu automatically snaps to the right side of the main hub when opened, and can be dragged freely.
-* **Clickable ESP Name Tags:** Toggle ESP on and click directly on a player's name tag in the 3D world to instantly select or deselect them.
-* **Persistent Selection:** Player selections survive character resets, deaths, and respawns until they leave the server.
-* **Camera Zoom Limits:** Automatically unlocks maximum camera zoom and sets minimum zoom to the closest possible distance.
-* **Advanced Size Sequencing:** Custom parser for progressive growth/shrink sequences.
+**MISG Hub** is a feature-rich, sleek Roblox script designed for manipulating player sizes, body scales, and head dimensions dynamically using custom sequence commands. It features an interactive UI with smooth animations, mobile-friendly dragging, player selection via ESP or a search menu, and a powerful size-sequencing parser.
 
 ---
 
-## 🎮 How to Use Size Sequences
+## ✨ Features
 
-You can type advanced automated commands into the **Set Size** input box:
-
-* **Basic Set:** `1` (Sets size to 1)
-* **Timed Delay (`..`):** `1, ..2, 2` (Sets size to 1, waits 2 seconds, then sets to 2)
-* **Incremental Step (`.!`) & Limit (`!!`):** 
-  `1, ..2, .!0.5, !!2` 
-  *(Starts at 1, waits 2 seconds, adds 0.5 every interval until it reaches a limit of 2, then stops)*
+- **Dynamic Size Editor GUI**: Sleek dark-mode interface with smooth opening/closing animations and draggable windows/status panels.
+- **Advanced Sequence Parser**: Chain multiple scaling commands together with custom delays, increments, and dynamic targets.
+- **Dynamic `?` Target Support**: Automatically detects and transitions back to player baseline or original sizes seamlessly (`!!?`).
+- **Simultaneous Multi-Target Scaling**: Apply size adjustments instantly across all selected players or everyone in the server at the exact same time.
+- **Multi-Part Control**: Toggle and apply scaling to specific body parts (`Height`, `Width`, `Depth`, `Head`) simultaneously.
+- **Built-in ESP & Infinite Click Selection**: Easily highlight and select players by clicking them from any distance or through the searchable player list.
+- **Loop Modes**: Continuously loop size updates for selected players or everyone.
 
 ---
 
-## 🛠️ Controls & Buttons
+## 🚀 How to Use
 
-* **MISG Floating Button:** Toggles the Main Hub open or closed.
-* **Select Player >:** Opens the player search window directly beside the hub.
-* **DeSelect All Player:** Clears all currently selected players.
-* **Height / Width / Depth / Head:** Toggles individual body part scaling on or off.
-* **Apply To Select / Apply To All:** Executes your scale values or sequences immediately.
-* **LOOP 🟢 / 🔴:** Continuously loops size application for selected players or everyone.
-* **ESP:** Highlights players and shows name tags in the game world.
+1. Execute the script using your preferred Roblox exploit/executor.
+2. The **MISG HUB** floating button and status label will appear on your screen. Click **MISG** to toggle the main menu.
+3. Select your target players using the **Select Player** menu or click directly on players using the infinite-distance ESP click selector.
+4. Choose which body parts to affect (`Height`, `Width`, `Depth`, `Head`) using the toggle buttons.
+5. Enter your size command into the scale box and click **Apply To Select** or **Apply To All**.
+
+---
+
+## ⌨️ Sequence Command Guide
+
+You can chain multiple commands together separated by commas `,` to create smooth, animated size sequences.
+
+### Command Syntax
+- **`[Number]`**: Sets the target size instantly (e.g., `1`).
+- **`..[Seconds]`**: Sets the delay/wait time between incremental steps (e.g., `..0.1`).
+- **`.![Step]`**: Specifies how much size to add per step (e.g., `.!0.1`).
+- **`!![Target]`**: Increments smoothly toward a target size using a default step of `0.5` (e.g., `!!5`).
+- **`!?`**: Dynamically targets the player's original baseline/starting size (e.g., `!!?` or `.!0.1!?`).
+
+### Example Sequences
+
+- **Grow to 5 smoothly:**
+  ```text
+  1, ..0.1, .!0.1, !!5

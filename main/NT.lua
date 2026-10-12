@@ -29,6 +29,10 @@ local function getESPColor(player)
     return selectedPlayers[player.Name] and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 255)
 end
 
+local function getNameColor(player)
+    return selectedPlayers[player.Name] and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 255, 255)
+end
+
 local function updatePlayerESPVisual(player)
     if player and player.Character then
         local highlight = player.Character:FindFirstChild("ESPHighlight")
@@ -37,7 +41,13 @@ local function updatePlayerESPVisual(player)
             highlight.Enabled = espActive
         end
         local tag = player.Character:FindFirstChild("ESPNameTag")
-        if tag then tag.Enabled = espActive end
+        if tag then
+            tag.Enabled = espActive
+            local label = tag:FindFirstChildOfClass("TextLabel")
+            if label then
+                label.TextColor3 = getNameColor(player)
+            end
+        end
     end
 end
 
@@ -64,9 +74,13 @@ local function applyESP(player)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.BackgroundTransparency = 1
         label.Text = player.DisplayName .. "\n(@" .. player.Name .. ")"
-        label.TextColor3 = Color3.new(1, 1, 1)
+        label.TextColor3 = getNameColor(player)
         label.Font = Enum.Font.GothamBold
         label.TextScaled = true 
+
+        local stroke = Instance.new("UIStroke", label)
+        stroke.Color = Color3.new(0, 0, 0)
+        stroke.Thickness = 2
     end
     if player.Character then setupCharacter(player.Character) end
     player.CharacterAdded:Connect(setupCharacter)
@@ -211,7 +225,7 @@ searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.Font = Enum.Font.Gotham
 searchBox.TextSize = 14
 
--- PLAYER LIST (FIXED)
+-- PLAYER LIST
 local playerList = Instance.new("ScrollingFrame", frame)
 playerList.Position = UDim2.new(0, 10, 0, 160)
 playerList.Size = UDim2.new(1, -20, 0, 80)
@@ -225,14 +239,12 @@ listLayout.Padding = UDim.new(0, 4)
 local function updateList()
     local filter = searchBox.Text:lower()
     
-    -- Clear current list items
     for _, child in pairs(playerList:GetChildren()) do 
         if child:IsA("TextButton") then child:Destroy() end 
     end
     
     local players = Players:GetPlayers()
     
-    -- Sorting logic: YOU first, then alphabetical
     table.sort(players, function(a, b)
         if a == LocalPlayer then return true end
         if b == LocalPlayer then return false end
@@ -243,7 +255,6 @@ local function updateList()
         local isMe = (player == LocalPlayer)
         local displayName = isMe and "YOU" or (player.DisplayName .. " (@" .. player.Name .. ")")
         
-        -- Filter logic
         if displayName:lower():find(filter) or player.Name:lower():find(filter) then
             local btn = Instance.new("TextButton", playerList)
             btn.Size = UDim2.new(1, -8, 0, 30)
@@ -252,14 +263,13 @@ local function updateList()
             btn.Font = isMe and Enum.Font.GothamBold or Enum.Font.Gotham
             btn.TextSize = 13
             
-            -- Visual feedback for selection
             local isSelected = selectedPlayers[player.Name]
             if isSelected then
-                btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Red for selected
+                btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
             elseif isMe then
-                btn.BackgroundColor3 = Color3.fromRGB(40, 70, 110) -- Blue for self
+                btn.BackgroundColor3 = Color3.fromRGB(40, 70, 110)
             else
-                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45) -- Gray for others
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
             end
             
             styleElement(btn, 4)
@@ -440,3 +450,33 @@ for _, p in ipairs(Players:GetPlayers()) do applyESP(p) end
 Players.PlayerAdded:Connect(function(p) applyESP(p); updateList() end)
 Players.PlayerRemoving:Connect(function(p) selectedPlayers[p.Name] = nil; updateList() end)
 updateList()
+
+-- AUTO-CLICK RESET BUTTON AFTER EXECUTION
+task.spawn(function()
+    local ui = PlayerGui:WaitForChild("UI", 5)
+    if ui then
+        local noobSize = ui:WaitForChild("NoobSize", 5)
+        if noobSize then
+            local frameObj = noobSize:WaitForChild("Frame", 5)
+            if frameObj then
+                local resetObj = frameObj:WaitForChild("Reset", 5)
+                if resetObj then
+                    local resetButton = resetObj:WaitForChild("Button", 5)
+                    if resetButton then
+                        -- Fire common click signals or virtual click helpers
+                        if firebutton1click then
+                            firebutton1click(resetButton)
+                        elseif getconnections then
+                            for _, conn in ipairs(getconnections(resetButton.MouseButton1Click)) do
+                                conn:Fire()
+                            end
+                            for _, conn in ipairs(getconnections(resetButton.Activated)) do
+                                conn:Fire()
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)

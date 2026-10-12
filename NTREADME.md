@@ -35,7 +35,7 @@ You can chain multiple commands together separated by commas `,` to create smoot
 - **`..[Seconds]`**: Sets the delay/wait time between incremental steps (e.g., `..0.1` sets the speed to wait **0.1 seconds** between updates). If you don't specify a delay, it defaults to **0.5 seconds**.
 - **`.![Step]`**: Specifies custom size increase increments per step (e.g., `.!0.1` increases the size by **0.1** each tick).
 - **`!![Target]`**: Increases size smoothly toward a target using **default values** (defaults to increasing by **0.5** every **0.5 seconds** if no custom `..` or `.!` speed was set beforehand). You can also combine it with a custom increment like `.!0.1, !!5` to make it increase slowly by `0.1`.
-- **`!?`**: Dynamically targets the player's original baseline/starting size for all selected body parts (Height, Width, Depth, Head), allowing you to return everyone back to normal smoothly (e.g., `!!?` or `.!0.1!?`).
+- **`?`**: Dynamically targets the player's original baseline/starting size for all selected body parts (Height, Width, Depth, Head), allowing you to return everyone back to normal smoothly (e.g., `!!?` or `.!0.1, !!?`).
 
 ### Example Sequences
 

@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer.PlayerGui
@@ -17,6 +18,36 @@ local function styleElement(obj, radius)
     corner.Parent = obj
 end
 
+-- ANIMATION HELPER (UIScale based smooth open/close)
+local tweenInfoOpen = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local tweenInfoClose = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+local function smoothOpen(uiObject)
+    local uiScale = uiObject:FindFirstChildOfClass("UIScale")
+    if not uiScale then
+        uiScale = Instance.new("UIScale", uiObject)
+    end
+    uiScale.Scale = 0
+    uiObject.Visible = true
+    local tween = TweenService:Create(uiScale, tweenInfoOpen, {Scale = 1})
+    tween:Play()
+end
+
+local function smoothClose(uiObject, callback)
+    local uiScale = uiObject:FindFirstChildOfClass("UIScale")
+    if not uiScale then
+        uiScale = Instance.new("UIScale", uiObject)
+        uiScale.Scale = 1
+    end
+    local tween = TweenService:Create(uiScale, tweenInfoClose, {Scale = 0})
+    tween:Play()
+    tween.Completed:Connect(function()
+        uiObject.Visible = false
+        uiScale.Scale = 1 -- Reset scale for next opening
+        if callback then callback() end
+    end)
+end
+
 -- Variables
 local selectedPlayers = {} 
 local espActive = false      -- OFF AT START
@@ -25,6 +56,7 @@ local loopEveryone = false   -- OFF AT START
 local lastLoopUpdate = 0
 local LOOP_DELAY = 0.05      -- Fast loop speed
 _G.DetectedSizeID = _G.DetectedSizeID or nil
+local idFoundState = false
 
 -- MAIN SCREEN GUI
 local gui = Instance.new("ScreenGui")
@@ -82,7 +114,7 @@ styleElement(minBtn, 17)
 -- SELECT PLAYER POPUP FRAME
 local playerPopup = Instance.new("Frame", gui)
 playerPopup.Size = UDim2.new(0, 280, 0, 260)
-playerPopup.Position = UDim2.new(0.5, 160, 0.5, -260)
+playerPopup.Position = UDim2.new(frame.Position.X.Scale, frame.Position.X.Offset + frame.Size.X.Offset + 10, frame.Position.Y.Scale, frame.Position.Y.Offset)
 playerPopup.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 playerPopup.Visible = false
 playerPopup.Active = true
@@ -126,6 +158,39 @@ playerList.ScrollBarThickness = 3
 playerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
 local listLayout = Instance.new("UIListLayout", playerList)
 listLayout.Padding = UDim.new(0, 6)
+
+-- Run startup opening animations
+smoothOpen(frame)
+smoothOpen(floatingBtn)
+
+-- HELPER TO ALIGN POPUP RIGHT NEXT TO MAIN FRAME ON SHOW
+local function alignPopupToRight()
+    playerPopup.Position = UDim2.new(
+        frame.Position.X.Scale, 
+        frame.Position.X.Offset + frame.Size.X.Offset + 12, 
+        frame.Position.Y.Scale, 
+        frame.Position.Y.Offset
+    )
+end
+
+-- SEQUENTIAL CLOSE FUNCTION (Search Popup First, then Main Frame)
+local isClosing = false
+local function closeAllSequentially()
+    if isClosing then return end
+    isClosing = true
+    
+    if playerPopup.Visible then
+        smoothClose(playerPopup, function()
+            smoothClose(frame, function()
+                isClosing = false
+            end)
+        end)
+    else
+        smoothClose(frame, function()
+            isClosing = false
+        end)
+    end
+end
 
 -- ADVANCED DRAG ENGINE
 local function applyMobileDrag(targetFrame, dragHandle)
@@ -175,11 +240,16 @@ selectPlayerBtn.TextSize = 15
 styleElement(selectPlayerBtn, 12)
 
 selectPlayerBtn.MouseButton1Click:Connect(function()
-    playerPopup.Visible = not playerPopup.Visible
+    if playerPopup.Visible then
+        smoothClose(playerPopup)
+    else
+        alignPopupToRight() -- Automatically position directly to the right of main frame
+        smoothOpen(playerPopup)
+    end
 end)
 
 popupClose.MouseButton1Click:Connect(function()
-    playerPopup.Visible = false
+    smoothClose(playerPopup)
 end)
 
 -- 2. DESELECT ALL PLAYER BUTTON
@@ -302,7 +372,7 @@ sizeIdLabel.Size = UDim2.new(0.65, 0, 1, 0)
 sizeIdLabel.Position = UDim2.new(0, 5, 0, 0)
 sizeIdLabel.BackgroundTransparency = 1
 sizeIdLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-sizeIdLabel.Text = _G.DetectedSizeID and "ID FOUND" or "ID NOT FOUND"
+sizeIdLabel.Text = "Find ID..."
 sizeIdLabel.Font = Enum.Font.GothamBold
 sizeIdLabel.TextSize = 13
 sizeIdLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -316,6 +386,20 @@ espToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
 espToggle.Font = Enum.Font.Gotham
 espToggle.TextSize = 15
 styleElement(espToggle, 16)
+
+-- ANIMATED "Find ID..." STATUS LOOP
+task.spawn(function()
+    local dots = {".", "..", "..."}
+    local idx = 1
+    while not idFoundState and not _G.DetectedSizeID do
+        sizeIdLabel.Text = "Find ID" .. dots[idx]
+        idx = (idx % 3) + 1
+        task.wait(0.4)
+    end
+    if _G.DetectedSizeID then
+        sizeIdLabel.Text = "ID FOUND"
+    end
+end)
 
 -- REMOTE SNIFFER
 local POST = nil
@@ -331,6 +415,7 @@ task.spawn(function()
                     local args = {...}
                     if self == POST and args[2] == "UpdateScale" then
                         _G.DetectedSizeID = tostring(args[1])
+                        idFoundState = true
                         if sizeIdLabel then sizeIdLabel.Text = "ID FOUND" end
                     end
                     return oldNamecall(self, ...)
@@ -359,6 +444,13 @@ task.spawn(function()
             end
         end
     end)
+    
+    -- Timeout check after 7 seconds total if ID is still not found
+    task.wait(3)
+    if not _G.DetectedSizeID then
+        idFoundState = true
+        if sizeIdLabel then sizeIdLabel.Text = "ID Not Found!" end
+    end
 end)
 
 -- ESP FUNCTIONS
@@ -494,7 +586,7 @@ applyBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- FIRES TO ALL AT EXACT SAME TIME SIMULTANEOUSLY
+-- FIRES TO ALL SIMULTANEOUSLY
 allBtn.MouseButton1Click:Connect(function()
     local val = tonumber(scaleBox.Text) or 1
     for _, p in ipairs(Players:GetPlayers()) do
@@ -554,13 +646,15 @@ espToggle.MouseButton1Click:Connect(function()
 end)
 
 floatingBtn.MouseButton1Click:Connect(function()
-    frame.Visible = not frame.Visible
-    if not frame.Visible then playerPopup.Visible = false end
+    if frame.Visible then
+        closeAllSequentially()
+    else
+        smoothOpen(frame)
+    end
 end)
 
 minBtn.MouseButton1Click:Connect(function() 
-    frame.Visible = false
-    playerPopup.Visible = false
+    closeAllSequentially()
 end)
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(updateList)

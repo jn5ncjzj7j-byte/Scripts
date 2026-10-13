@@ -57,6 +57,7 @@ local lastLoopUpdate = 0
 local LOOP_DELAY = 0.05      
 _G.DetectedSizeID = _G.DetectedSizeID or nil
 local idFoundState = false
+local isExecutingSequence = false 
 local updateList
 local updatePlayerESPVisual
 
@@ -66,10 +67,10 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PlayerGui
 
--- STATUS DISPLAY
+-- STATUS DISPLAY (LONGER UI)
 local seqStatusLabel = Instance.new("TextLabel", gui)
-seqStatusLabel.Size = UDim2.new(0, 240, 0, 42)
-seqStatusLabel.Position = UDim2.new(1, -345, 1, -55)
+seqStatusLabel.Size = UDim2.new(0, 330, 0, 42)
+seqStatusLabel.Position = UDim2.new(1, -435, 1, -55)
 seqStatusLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 seqStatusLabel.Text = "ready"
 seqStatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -596,16 +597,16 @@ updateList = function()
     end
 end
 
--- HELPER TO FETCH INITIAL BASELINE SIZE CACHED AT START OF SEQUENCE
-local function getPlayerInitialSize(p)
+-- HELPER TO FETCH INITIAL PART SIZE INDIVIDUALLY FOR EACH PLAYER
+local function getPlayerInitialPartSize(p, partName)
     local fallback = 1
     local success, result = pcall(function()
         if p and p.Character then
             local humanoid = p.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
-                local scale = humanoid:FindFirstChild("BodyHeightScale")
-                if scale then
-                    return scale.Value
+                local scaleObj = humanoid:FindFirstChild("Body" .. partName .. "Scale") or humanoid:FindFirstChild(partName .. "Scale")
+                if scaleObj then
+                    return scaleObj.Value
                 end
             end
         end
@@ -616,8 +617,39 @@ local function getPlayerInitialSize(p)
     return fallback
 end
 
--- FULLY SYNCHRONIZED MULTI-PART PARSER
+-- SEQUENCE PARSER WITH INSTANT SINGLE-NUMBER SET & SPAM GUARD
 local function runScaleSequence(inputText, targetsTable, modeType)
+    local singleVal = tonumber(inputText)
+    if singleVal then
+        if modeType == "Select" then
+            seqStatusLabel.Text = string.format("size: %.1f applied to select", singleVal)
+        else
+            seqStatusLabel.Text = string.format("size: %.1f applied to all", singleVal)
+        end
+        local useId = _G.DetectedSizeID
+        local remote = ReplicatedStorage:FindFirstChild("POST")
+        if useId and remote then
+            for _, p in ipairs(targetsTable) do
+                if p then
+                    for partName, enabled in pairs(selectedParts) do
+                        if enabled then
+                            pcall(function()
+                                remote:FireServer(useId, "UpdateScale", p, partName, singleVal * 100)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+        task.delay(1.5, function()
+            seqStatusLabel.Text = "ready"
+        end)
+        return
+    end
+
+    if isExecutingSequence then return end
+    isExecutingSequence = true
+
     task.spawn(function()
         if modeType == "Select" then
             seqStatusLabel.Text = "Applied Size To Select"
@@ -625,9 +657,12 @@ local function runScaleSequence(inputText, targetsTable, modeType)
             seqStatusLabel.Text = "Applied Size To All"
         end
 
-        local unifiedInitialSize = 1
-        if #targetsTable > 0 then
-            unifiedInitialSize = getPlayerInitialSize(targetsTable[1])
+        local playerInitialSizes = {}
+        for _, p in ipairs(targetsTable) do
+            playerInitialSizes[p] = {}
+            for partName, _ in pairs(selectedParts) do
+                playerInitialSizes[p][partName] = getPlayerInitialPartSize(p, partName)
+            end
         end
 
         local tokens = {}
@@ -648,6 +683,27 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                             if enabled then
                                 pcall(function()
                                     remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local function applyPlayerOriginalSizes(progressRatio)
+            local useId = _G.DetectedSizeID
+            local remote = ReplicatedStorage:FindFirstChild("POST")
+            if useId and remote then
+                for _, p in ipairs(targetsTable) do
+                    if p and playerInitialSizes[p] then
+                        for partName, enabled in pairs(selectedParts) do
+                            if enabled then
+                                local origSize = playerInitialSizes[p][partName] or 1
+                                local startSize = currentSize or 1
+                                local interpolatedSize = startSize + ((origSize - startSize) * math.clamp(progressRatio, 0, 1))
+                                pcall(function()
+                                    remote:FireServer(useId, "UpdateScale", p, partName, interpolatedSize * 100)
                                 end)
                             end
                         end
@@ -679,63 +735,99 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                 end
 
                 if currentSize then
-                    local targetLimit = 5
                     if targetLimitToken == "?" then
-                        targetLimit = unifiedInitialSize
-                    elseif targetLimitToken then
-                        targetLimit = tonumber(targetLimitToken) or 5
-                    end
-
-                    local tempSize = currentSize
-                    local isShrinking = currentSize > targetLimit
-                    while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
-                        local left = math.abs(targetLimit - tempSize)
-                        if left < stepAdd then
-                            tempSize = targetLimit
-                        else
+                        local tempSize = currentSize
+                        local isShrinking = currentSize > 1
+                        
+                        while true do
+                            local diff = math.abs(1 - tempSize)
+                            if diff < 0.01 then break end
+                            
                             tempSize = isShrinking and (tempSize - stepAdd) or (tempSize + stepAdd)
+                            if isShrinking and tempSize < 1 then tempSize = 1 end
+                            if not isShrinking and tempSize > 1 then tempSize = 1 end
+
+                            local ratio = math.abs(tempSize - currentSize) / math.abs(1 - currentSize)
+                            if not ratio or ratio ~= ratio then ratio = 1 end
+
+                            seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, restoring", stepAdd, pendingDelay)
+                            applyPlayerOriginalSizes(ratio)
+                            task.wait(pendingDelay)
+                            if tempSize == 1 then break end
                         end
-                        
-                        if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
-                        if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
-                        
-                        seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, %.1f size left", stepAdd, pendingDelay, math.abs(targetLimit - tempSize))
-                        applyToAllTargets(tempSize)
-                        task.wait(pendingDelay)
+                        currentSize = 1
+                    else
+                        local targetLimit = tonumber(targetLimitToken) or 5
+                        local tempSize = currentSize
+                        local isShrinking = currentSize > targetLimit
+                        while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
+                            local left = math.abs(targetLimit - tempSize)
+                            if left < stepAdd then
+                                tempSize = targetLimit
+                            else
+                                tempSize = isShrinking and (tempSize - stepAdd) or (tempSize + stepAdd)
+                            end
+                            
+                            if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
+                            if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
+                            
+                            seqStatusLabel.Text = string.format("add: %.1f, time: %.1f, left", stepAdd, pendingDelay)
+                            applyToAllTargets(tempSize)
+                            task.wait(pendingDelay)
+                        end
+                        currentSize = targetLimit
                     end
-                    currentSize = targetLimit
                 end
 
             elseif t:sub(1, 2) == "!!" then
                 local targetLimitToken = t:sub(3)
-                local targetLimit = 5
                 if targetLimitToken == "?" then
-                    targetLimit = unifiedInitialSize
-                elseif targetLimitToken then
-                    targetLimit = tonumber(targetLimitToken) or 5
-                end
+                    if currentSize then
+                        local tempSize = currentSize
+                        local defaultStep = 0.5
+                        local isShrinking = currentSize > 1
+                        while true do
+                            local diff = math.abs(1 - tempSize)
+                            if diff < 0.05 then break end
 
-                if currentSize and targetLimit then
-                    local tempSize = currentSize
-                    local defaultStep = 0.5
-                    local isShrinking = currentSize > targetLimit
-                    while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
-                        local left = math.abs(targetLimit - tempSize)
-                        if left < defaultStep then
-                            tempSize = targetLimit
-                        else
                             tempSize = isShrinking and (tempSize - defaultStep) or (tempSize + defaultStep)
+                            if isShrinking and tempSize < 1 then tempSize = 1 end
+                            if not isShrinking and tempSize > 1 then tempSize = 1 end
+
+                            local ratio = math.abs(tempSize - currentSize) / math.abs(1 - currentSize)
+                            if not ratio or ratio ~= ratio then ratio = 1 end
+
+                            seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, left", pendingDelay)
+                            applyPlayerOriginalSizes(ratio)
+                            task.wait(pendingDelay)
+                            if tempSize == 1 then break end
                         end
-
-                        if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
-                        if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
-
-                        seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, %.1f size left", pendingDelay, math.abs(targetLimit - tempSize))
-                        applyToAllTargets(tempSize)
-                        task.wait(pendingDelay)
                     end
+                    currentSize = 1
+                else
+                    local targetLimit = tonumber(targetLimitToken) or 5
+                    if currentSize and targetLimit then
+                        local tempSize = currentSize
+                        local defaultStep = 0.5
+                        local isShrinking = currentSize > targetLimit
+                        while (isShrinking and tempSize > targetLimit) or (not isShrinking and tempSize < targetLimit) do
+                            local left = math.abs(targetLimit - tempSize)
+                            if left < defaultStep then
+                                tempSize = targetLimit
+                            else
+                                tempSize = isShrinking and (tempSize - defaultStep) or (tempSize + defaultStep)
+                            end
+
+                            if isShrinking and tempSize < targetLimit then tempSize = targetLimit end
+                            if not isShrinking and tempSize > targetLimit then tempSize = targetLimit end
+
+                            seqStatusLabel.Text = string.format("add: 0.5, time: %.1f, left", pendingDelay)
+                            applyToAllTargets(tempSize)
+                            task.wait(pendingDelay)
+                        end
+                    end
+                    currentSize = targetLimit
                 end
-                currentSize = targetLimit
                 i = i + 1
 
             else
@@ -754,12 +846,14 @@ local function runScaleSequence(inputText, targetsTable, modeType)
             end
         end
 
-        task.wait(2)
+        task.wait(1)
         seqStatusLabel.Text = "ready"
+        isExecutingSequence = false 
     end)
 end
 
 applyBtn.MouseButton1Click:Connect(function()
+    if isExecutingSequence then return end
     local targets = {}
     for name, _ in pairs(selectedPlayers) do
         local p = Players:FindFirstChild(name)
@@ -771,6 +865,7 @@ applyBtn.MouseButton1Click:Connect(function()
 end)
 
 allBtn.MouseButton1Click:Connect(function()
+    if isExecutingSequence then return end
     runScaleSequence(scaleBox.Text, Players:GetPlayers(), "All")
 end)
 
@@ -792,12 +887,20 @@ loopEveryoneBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- INDEPENDENT LOOP HEARTBEAT
 RunService.Heartbeat:Connect(function()
     if not loopSelected and not loopEveryone then return end
     if os.clock() - lastLoopUpdate < LOOP_DELAY then return end
     lastLoopUpdate = os.clock()
 
-    local val = tonumber(scaleBox.Text) or 1
+    local val = tonumber(scaleBox.Text)
+    if not val then return end
+
+    local useId = _G.DetectedSizeID
+    local remote = ReplicatedStorage:FindFirstChild("POST")
+
+    if not useId or not remote then return end
+
     if loopSelected then
         for name, _ in pairs(selectedPlayers) do
             local p = Players:FindFirstChild(name)
@@ -805,7 +908,7 @@ RunService.Heartbeat:Connect(function()
                 for partName, enabled in pairs(selectedParts) do
                     if enabled then
                         pcall(function()
-                            ReplicatedStorage.POST:FireServer(_G.DetectedSizeID, "UpdateScale", p, partName, val * 100)
+                            remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
                         end)
                     end
                 end
@@ -816,7 +919,7 @@ RunService.Heartbeat:Connect(function()
             for partName, enabled in pairs(selectedParts) do
                 if enabled then
                     pcall(function()
-                        ReplicatedStorage.POST:FireServer(_G.DetectedSizeID, "UpdateScale", p, partName, val * 100)
+                        remote:FireServer(useId, "UpdateScale", p, partName, val * 100)
                     end)
                 end
             end

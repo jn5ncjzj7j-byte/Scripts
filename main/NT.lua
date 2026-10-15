@@ -7,6 +7,8 @@ local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer.PlayerGui
 
+local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
+
 LocalPlayer.CameraMaxZoomDistance = math.huge
 LocalPlayer.CameraMinZoomDistance = 0.5
 

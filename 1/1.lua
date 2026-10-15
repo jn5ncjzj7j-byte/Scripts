@@ -10,14 +10,14 @@ end
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 
--- Create Main ScreenGui
+local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
+
 local sg = Instance.new("ScreenGui")
 sg.Name = "MISGHubLoadingGui"
-sg.Parent = CoreGui
+sg.Parent = protectedParent
 sg.IgnoreGuiInset = true
 sg.ResetOnSpawn = false
 
--- Title Pill (MISG HUB) - for easy to find im lazy
 local titleFrame = Instance.new("Frame")
 titleFrame.Size = UDim2.new(0, 380, 0, 90)
 titleFrame.Position = UDim2.new(0.5, 0, 0.39, 0)
@@ -46,7 +46,6 @@ titleLabel.TextSize = 36
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.Parent = titleFrame
 
--- Loading Slider Bar Frame - 
 local barFrame = Instance.new("Frame")
 barFrame.Size = UDim2.new(0, 360, 0, 50)
 barFrame.Position = UDim2.new(0.5, 0, 0.54, 0)
@@ -67,7 +66,6 @@ barStroke.Color = Color3.fromRGB(80, 80, 80)
 barStroke.Thickness = 1.5
 barStroke.Parent = barFrame
 
--- White Loading Progress Bar (โหลดเต็มภายใน 4 วินาที)
 local progress = Instance.new("Frame")
 progress.Size = UDim2.new(0, 10, 1, -12)
 progress.Position = UDim2.new(0, 6, 0.5, 0)
@@ -80,14 +78,12 @@ local progressCorner = Instance.new("UICorner")
 progressCorner.CornerRadius = UDim.new(1, 0)
 progressCorner.Parent = progress
 
--- Tween โหลด 4 วินาที
 local tweenInfo = TweenInfo.new(4, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
 local loadTween = TweenService:Create(progress, tweenInfo, {
     Size = UDim2.new(1, -12, 1, -12)
 })
 loadTween:Play()
 
--- ฟังก์ชันค่อยๆ จางหาย (Fade Out)
 local function fadeOutUI()
     local fadeInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
@@ -102,7 +98,6 @@ local function fadeOutUI()
     sg:Destroy()
 end
 
--- เมื่อโหลดครบ 4 วินาทีค่อยจางหายและรันสคริปต์
 task.spawn(function()
     task.wait(4)
     
@@ -115,10 +110,9 @@ task.spawn(function()
     elseif ADT then
         loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqLgnd/Utilities/main/DustyTrip", true))()
     else
-        -- Unsupported Game UI
         local sgNotSupported = Instance.new("ScreenGui")
         sgNotSupported.Name = "NotSupportedGui"
-        sgNotSupported.Parent = CoreGui
+        sgNotSupported.Parent = protectedParent
         sgNotSupported.IgnoreGuiInset = true
 
         local frame = Instance.new("Frame")
@@ -141,7 +135,6 @@ task.spawn(function()
         label.Font = Enum.Font.GothamBold
         label.Parent = frame
 
-        -- Copy Discord Button
         local copyBtn = Instance.new("TextButton")
         copyBtn.Size = UDim2.new(0, 200, 0, 40)
         copyBtn.Position = UDim2.new(0.5, -100, 0.7, 0)
@@ -167,7 +160,6 @@ task.spawn(function()
             end
         end)
 
-        -- Close Button
         local close = Instance.new("TextButton")
         close.Size = UDim2.new(0, 30, 0, 30)
         close.Position = UDim2.new(1, -35, 0, 5)

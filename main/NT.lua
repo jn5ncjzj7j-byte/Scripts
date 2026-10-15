@@ -644,47 +644,13 @@ seqStatusLabel.MouseButton1Click:Connect(function()
 end)
 
 local function runScaleSequence(inputText, targetsTable, modeType)
-    local singleVal = tonumber(inputText)
-    if singleVal then
-        if modeType == "Select" then
-            seqStatusLabel.Text = string.format("size: %.1f applied to select", singleVal)
-        else
-            seqStatusLabel.Text = string.format("size: %.1f applied to all", singleVal)
-        end
-        local useId = _G.DetectedSizeID
-        local remote = ReplicatedStorage:FindFirstChild("POST")
-        if useId and remote then
-            for _, p in ipairs(targetsTable) do
-                if p then
-                    for partName, enabled in pairs(selectedParts) do
-                        if enabled then
-                            pcall(function()
-                                remote:FireServer(useId, "UpdateScale", p, partName, singleVal * 100)
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-        task.delay(1.5, function()
-            if not isExecutingSequence then
-                seqStatusLabel.Text = "ready"
-            end
-        end)
-        return
-    end
-
     if isExecutingSequence then return end
     isExecutingSequence = true
     stopRequested = false
     stopConfirmActive = false
 
     task.spawn(function()
-        if modeType == "Select" then
-            seqStatusLabel.Text = "Running..."
-        else
-            seqStatusLabel.Text = "Running..."
-        end
+        seqStatusLabel.Text = "Running..."
 
         local playerInitialSizes = {}
         for _, p in ipairs(targetsTable) do
@@ -718,6 +684,16 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                     end
                 end
             end
+        end
+
+        -- Interruptible sleep helper to allow instant stopping
+        local function interruptibleSleep(sec)
+            local start = os.clock()
+            while os.clock() - start < sec do
+                if stopRequested then return true end
+                task.wait(0.05)
+            end
+            return stopRequested
         end
 
         local currentSize = nil
@@ -762,7 +738,7 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                         end
                         
                         applyToAllTargets(currentSize)
-                        task.wait(pendingDelay)
+                        if interruptibleSleep(pendingDelay) then break end
                         
                         if currentSize == targetLimit then break end
                     end
@@ -773,7 +749,7 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                 local num = tonumber(t)
                 if num then
                     if currentSize then
-                        task.wait(pendingDelay)
+                        if interruptibleSleep(pendingDelay) then break end
                     end
                     if stopRequested then break end
                     currentSize = num
@@ -828,6 +804,7 @@ end)
 
 RunService.Heartbeat:Connect(function()
     if not loopSelected and not loopEveryone then return end
+    if isExecutingSequence then return end
     if os.clock() - lastLoopUpdate < LOOP_DELAY then return end
     lastLoopUpdate = os.clock()
 

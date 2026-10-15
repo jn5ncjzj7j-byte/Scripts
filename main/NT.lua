@@ -61,6 +61,7 @@ _G.DetectedSizeID = _G.DetectedSizeID or nil
 local idFoundState = false
 local isExecutingSequence = false 
 local stopRequested = false
+local stopConfirmActive = false
 local updateList
 local updatePlayerESPVisual
 
@@ -70,7 +71,7 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = protectedParent
 
-local seqStatusLabel = Instance.new("TextButton", gui) -- Changed to TextButton so it's clickable!
+local seqStatusLabel = Instance.new("TextButton", gui)
 seqStatusLabel.Size = UDim2.new(0, 330, 0, 42)
 seqStatusLabel.Position = UDim2.new(1, -435, 1, -55)
 seqStatusLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
@@ -620,11 +621,24 @@ end
 
 seqStatusLabel.MouseButton1Click:Connect(function()
     if isExecutingSequence then
-        if seqStatusLabel.Text == "Stop?" then
-            stopRequested = true
-            seqStatusLabel.Text = "stopping..."
-        else
+        if not stopConfirmActive then
+            stopConfirmActive = true
             seqStatusLabel.Text = "Stop?"
+            
+            task.spawn(function()
+                local startTick = tick()
+                while tick() - startTick < 2 and stopConfirmActive and isExecutingSequence do
+                    task.wait(0.1)
+                end
+                if stopConfirmActive and isExecutingSequence then
+                    stopConfirmActive = false
+                    seqStatusLabel.Text = "Running..."
+                end
+            end)
+        else
+            stopRequested = true
+            stopConfirmActive = false
+            seqStatusLabel.Text = "stopping..."
         end
     end
 end)
@@ -663,12 +677,13 @@ local function runScaleSequence(inputText, targetsTable, modeType)
     if isExecutingSequence then return end
     isExecutingSequence = true
     stopRequested = false
+    stopConfirmActive = false
 
     task.spawn(function()
         if modeType == "Select" then
-            seqStatusLabel.Text = "Applied Size To Select"
+            seqStatusLabel.Text = "Running..."
         else
-            seqStatusLabel.Text = "Applied Size To All"
+            seqStatusLabel.Text = "Running..."
         end
 
         local playerInitialSizes = {}
@@ -747,7 +762,6 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                         end
                         
                         applyToAllTargets(currentSize)
-                        seqStatusLabel.Text = string.format("step: %.2f, target: %.2f", currentSize, targetLimit)
                         task.wait(pendingDelay)
                         
                         if currentSize == targetLimit then break end
@@ -764,7 +778,6 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                     if stopRequested then break end
                     currentSize = num
                     applyToAllTargets(currentSize)
-                    seqStatusLabel.Text = string.format("size: %.1f applied", currentSize)
                 end
                 i = i + 1
             end
@@ -774,6 +787,7 @@ local function runScaleSequence(inputText, targetsTable, modeType)
         seqStatusLabel.Text = "ready"
         isExecutingSequence = false 
         stopRequested = false
+        stopConfirmActive = false
     end)
 end
 

@@ -531,7 +531,7 @@ local function applyESP(player)
                 if clickDetector:GetAttribute("Connected") ~= true then
                     clickDetector:SetAttribute("Connected", true)
                     clickDetector.MouseClick:Connect(function(clicker)
-                        if clicker == LocalPlayer then
+                        if clicker == LocalPlayer and espActive then
                             if selectedPlayers[player.Name] then
                                 selectedPlayers[player.Name] = nil
                             else
@@ -645,6 +645,12 @@ end)
 
 local function runScaleSequence(inputText, targetsTable, modeType)
     if isExecutingSequence then return end
+    
+    loopSelected = false
+    loopSelectedBtn.Text = "LOOP 🔴"
+    loopEveryone = false
+    loopEveryoneBtn.Text = "LOOP 🔴"
+
     isExecutingSequence = true
     stopRequested = false
     stopConfirmActive = false
@@ -686,7 +692,6 @@ local function runScaleSequence(inputText, targetsTable, modeType)
             end
         end
 
-        -- Interruptible sleep helper to allow instant stopping
         local function interruptibleSleep(sec)
             local start = os.clock()
             while os.clock() - start < sec do
@@ -716,16 +721,31 @@ local function runScaleSequence(inputText, targetsTable, modeType)
                 stepAdd = tonumber(t:sub(3)) or 0.5
                 i = i + 1
 
-            elseif t:sub(1, 2) == "!!" or t == "?" then
-                local targetToken = (t == "?") and "?" or t:sub(3)
-                local targetLimit = nil
+            elseif t:sub(1, 2) == "!!" then
+                local targetToken = t:sub(3)
+                local targetLimit = (targetToken == "?") and (playerInitialSizes[targetsTable[1]] and playerInitialSizes[targetsTable[1]]["Height"] or 1) or (tonumber(targetToken) or 5)
 
-                if targetToken == "?" then
-                    targetLimit = playerInitialSizes[targetsTable[1]] and playerInitialSizes[targetsTable[1]]["Height"] or 1
-                else
-                    targetLimit = tonumber(targetToken) or 5
+                if currentSize and targetLimit then
+                    local isShrinking = currentSize > targetLimit
+                    while (isShrinking and currentSize > targetLimit) or (not isShrinking and currentSize < targetLimit) do
+                        if stopRequested then break end
+                        local distance = math.abs(targetLimit - currentSize)
+                        if distance < stepAdd then
+                            currentSize = targetLimit
+                        else
+                            currentSize = isShrinking and (currentSize - stepAdd) or (currentSize + stepAdd)
+                        end
+                        
+                        applyToAllTargets(currentSize)
+                        if interruptibleSleep(pendingDelay) then break end
+                        
+                        if currentSize == targetLimit then break end
+                    end
                 end
+                i = i + 1
 
+            elseif t == "?" then
+                local targetLimit = playerInitialSizes[targetsTable[1]] and playerInitialSizes[targetsTable[1]]["Height"] or 1
                 if currentSize and targetLimit then
                     local isShrinking = currentSize > targetLimit
                     while (isShrinking and currentSize > targetLimit) or (not isShrinking and currentSize < targetLimit) do

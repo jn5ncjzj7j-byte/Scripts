@@ -6,15 +6,15 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
 
--- SINGLETON CHECK: If this GUI already exists, abort and don't run the script at all
+-- SINGLETON CHECK: ถ้ามี GUI นี้อยู่แล้ว จะหยุดการทำงานทันที (ไม่รันซ้ำ)
 if protectedParent:FindFirstChild("misg-unti-muti-gui") then
     return
 end
 
--- Supported Place IDs & Discord
-local ZM  = game.PlaceId == 14419907512
-local NT  = game.PlaceId == 4655652068
-local ADT = game.PlaceId == 16389395869
+-- ==========================================
+-- ตั้งค่าลิงก์สคริปต์ตัวล่างจาก GitHub ตรงนี้
+-- ==========================================
+local MapLoaderScriptUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/testmap.lua"
 local DiscordLink = "https://discord.gg/dZjcYQN9xe"
 
 if not game:IsLoaded() then
@@ -22,14 +22,14 @@ if not game:IsLoaded() then
 end
 
 -- ==========================================
--- MISG HUB LOADING SCREEN
+-- MISG HUB LOADING SCREEN ANIMATION
 -- ==========================================
 local sg = Instance.new("ScreenGui")
 sg.Name = "misg-unti-muti-gui"
 sg.Parent = protectedParent
 sg.IgnoreGuiInset = true
 sg.ResetOnSpawn = false
-sg.DisplayOrder = math.huge
+sg.DisplayOrder = 999999
 
 local titleFrame = Instance.new("Frame")
 titleFrame.Size = UDim2.new(0, 380, 0, 90)
@@ -102,10 +102,10 @@ local loadTween = TweenService:Create(progress, tweenInfo, {
 loadTween:Play()
 
 -- ==========================================
--- LOAD HANDLER & UNSUPPORTED CHECK
+-- LOAD HANDLER (รอโหลดเสร็จแล้วค่อยทำต่อ)
 -- ==========================================
 task.spawn(function()
-    task.wait(4)
+    task.wait(4) -- รออนิเมชั่นโหลด 4 วินาที
     
     local fadeInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     TweenService:Create(titleFrame, fadeInfo, {BackgroundTransparency = 1}):Play()
@@ -117,17 +117,17 @@ task.spawn(function()
     
     task.wait(0.8)
     
-    if ZM then
-        sg.Enabled = false -- Hides instead of destroying
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/ZM.lua", true))()
-    elseif NT then
-        sg.Enabled = false -- Hides instead of destroying
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/NT.lua", true))()
-    elseif ADT then
-        sg.Enabled = false -- Hides instead of destroying
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqLgnd/Utilities/main/DustyTrip", true))()
-    else
-        -- If unsupported, clear loading elements and show the unsupported frame
+    -- เช็คก่อนว่ามีสคริปต์ตัวล่างอยู่จริงไหม (หรือจะเขียนเช็ค PlaceId ในนี้คร่าวๆ ก่อนก็ได้)
+    -- โดยในที่นี้เราจะซ่อนหน้าโหลดแล้วสั่งรันสคริปต์ตัวล่างจาก GitHub
+    sg.Enabled = false -- ซ่อนหน้าโหลดไว้ (ไม่ทำลาย เพื่อกันเปิดซ้ำตามเงื่อนไข)
+
+    local success, err = pcall(function()
+        loadstring(game:HttpGet(MapLoaderScriptUrl, true))()
+    end)
+
+    if not success then
+        -- ถ้าดึงสคริปต์ตัวล่างไม่สำเร็จ หรือเกมไม่รองรับ (สามารถจัดการแจ้งเตือนตรงนี้ต่อได้)
+        sg.Enabled = true
         titleFrame:Destroy()
         barFrame:Destroy()
 
@@ -146,7 +146,7 @@ task.spawn(function()
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, 0, 0.45, 0)
         label.BackgroundTransparency = 1
-        label.Text = "Game Not Supported\nID: " .. game.PlaceId .. "\nJoin Discord for more"
+        label.Text = "Game Not Supported / Error\nID: " .. game.PlaceId .. "\nJoin Discord for more"
         label.TextColor3 = Color3.fromRGB(255, 255, 255)
         label.TextSize = 16
         label.Font = Enum.Font.GothamBold
@@ -193,7 +193,7 @@ task.spawn(function()
         task.spawn(function()
             for i = 5, 1, -1 do
                 if not unsupportedFrame.Parent then break end
-                countdownLabel.Text = i .. " Seconds Remaining Until Destroy GUI"
+                countdownLabel.Text = i .. " seconds remaining until destroy GUI"
                 task.wait(1)
             end
             if sg and sg.Parent then
@@ -201,6 +201,6 @@ task.spawn(function()
             end
         end)
 
-        warn("Game Not Supported. ID: " .. game.PlaceId)
+        warn("Map Loader Error: " .. tostring(err))
     end
 end)

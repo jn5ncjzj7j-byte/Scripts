@@ -27,7 +27,7 @@ if existingGui then
 end
 
 local moveSpeed = 500
-local stageWaitTime = 0.55
+local stageWaitTime = 0.4
 local isRunning = false
 
 local screenGui = Instance.new("ScreenGui")
@@ -282,11 +282,15 @@ end
 local function getTargetPosition(targetInstance)
 	if targetInstance:IsA("Model") then
 		local cf, size = targetInstance:GetBoundingBox()
-		return cf.Position + Vector3.new(0, 3, 0)
+		-- Shift towards the front face (-Z direction relative to the stage orientation)
+		return (cf + (cf.LookVector * (size.Z / 2))).Position + Vector3.new(0, 3, 0)
 	elseif targetInstance:IsA("BasePart") then
-		return targetInstance.Position + Vector3.new(0, 2, 0)
+		local cf = targetInstance.CFrame
+		local size = targetInstance.Size
+		return (cf + (cf.LookVector * (size.Z / 2))).Position + Vector3.new(0, 2, 0)
 	end
-	return targetInstance:GetPivot().Position
+	local pivot = targetInstance:GetPivot()
+	return pivot.Position + Vector3.new(0, 3, 0)
 end
 
 local function getMovablePart()
@@ -433,7 +437,7 @@ commandInput.FocusLost:Connect(function(enterPressed)
 		end
 	elseif text == "help" then
 		printToTerminal("Commands:", Color3.fromRGB(255, 255, 100))
-		printToTerminal(" - start / on : Start Auto Far,", Color3.fromRGB(200, 200, 200))
+		printToTerminal(" - start / on : Start Auto Farm", Color3.fromRGB(200, 200, 200))
 		printToTerminal(" - stop / off : Cancel Auto Farm", Color3.fromRGB(200, 200, 200))
 		printToTerminal(" - speed [n]  : Changes Tween speed", Color3.fromRGB(200, 200, 200))
 		printToTerminal(" - clear      : Clears terminal history", Color3.fromRGB(200, 200, 200))

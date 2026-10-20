@@ -14,7 +14,7 @@ end
 -- ==========================================
 -- ตั้งค่าลิงก์สคริปต์ตัวล่างจาก GitHub ตรงนี้
 -- ==========================================
-local MapLoaderScriptUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/testmap.lua"
+local MapLoaderScriptUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/test.lua"
 local DiscordLink = "https://discord.gg/dZjcYQN9xe"
 
 if not game:IsLoaded() then

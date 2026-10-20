@@ -1,3 +1,17 @@
+-- Services
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
+
+-- SINGLETON CHECK: If this GUI already exists, abort and don't run the script at all
+if protectedParent:FindFirstChild("misg-unti-muti-gui") then
+    return
+end
+
+-- Supported Place IDs & Discord
 local ZM  = game.PlaceId == 14419907512
 local NT  = game.PlaceId == 4655652068
 local ADT = game.PlaceId == 16389395869
@@ -7,16 +21,15 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
-
-local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
-
+-- ==========================================
+-- MISG HUB LOADING SCREEN
+-- ==========================================
 local sg = Instance.new("ScreenGui")
-sg.Name = "MISGHubLoadingGui"
+sg.Name = "misg-unti-muti-gui"
 sg.Parent = protectedParent
 sg.IgnoreGuiInset = true
 sg.ResetOnSpawn = false
+sg.DisplayOrder = math.huge
 
 local titleFrame = Instance.new("Frame")
 titleFrame.Size = UDim2.new(0, 380, 0, 90)
@@ -26,6 +39,7 @@ titleFrame.Rotation = 5
 titleFrame.BackgroundColor3 = Color3.fromRGB(220, 220, 225)
 titleFrame.BackgroundTransparency = 0.5
 titleFrame.BorderSizePixel = 0
+titleFrame.ZIndex = 50
 titleFrame.Parent = sg
 
 local titleCorner = Instance.new("UICorner")
@@ -44,6 +58,7 @@ titleLabel.Text = "MISG HUB"
 titleLabel.TextColor3 = Color3.fromRGB(60, 60, 65)
 titleLabel.TextSize = 36
 titleLabel.Font = Enum.Font.GothamBold
+titleLabel.ZIndex = 51
 titleLabel.Parent = titleFrame
 
 local barFrame = Instance.new("Frame")
@@ -55,6 +70,7 @@ barFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 barFrame.BackgroundTransparency = 0.5
 barFrame.BorderSizePixel = 0
 barFrame.ClipsDescendants = true
+barFrame.ZIndex = 50
 barFrame.Parent = sg
 
 local barCorner = Instance.new("UICorner")
@@ -72,6 +88,7 @@ progress.Position = UDim2.new(0, 6, 0.5, 0)
 progress.AnchorPoint = Vector2.new(0, 0.5)
 progress.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 progress.BorderSizePixel = 0
+progress.ZIndex = 51
 progress.Parent = barFrame
 
 local progressCorner = Instance.new("UICorner")
@@ -84,9 +101,13 @@ local loadTween = TweenService:Create(progress, tweenInfo, {
 })
 loadTween:Play()
 
-local function fadeOutUI()
-    local fadeInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+-- ==========================================
+-- LOAD HANDLER & UNSUPPORTED CHECK
+-- ==========================================
+task.spawn(function()
+    task.wait(4)
     
+    local fadeInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     TweenService:Create(titleFrame, fadeInfo, {BackgroundTransparency = 1}):Play()
     TweenService:Create(barFrame, fadeInfo, {BackgroundTransparency = 1}):Play()
     TweenService:Create(progress, fadeInfo, {BackgroundTransparency = 1}):Play()
@@ -95,55 +116,64 @@ local function fadeOutUI()
     TweenService:Create(barStroke, fadeInfo, {Transparency = 1}):Play()
     
     task.wait(0.8)
-    sg:Destroy()
-end
-
-task.spawn(function()
-    task.wait(4)
-    
-    fadeOutUI()
     
     if ZM then
+        sg.Enabled = false -- Hides instead of destroying
         loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/ZM.lua", true))()
     elseif NT then
+        sg.Enabled = false -- Hides instead of destroying
         loadstring(game:HttpGet("https://raw.githubusercontent.com/jn5ncjzj7j-byte/Scripts/refs/heads/main/main/NT.lua", true))()
     elseif ADT then
+        sg.Enabled = false -- Hides instead of destroying
         loadstring(game:HttpGet("https://raw.githubusercontent.com/xxqLgnd/Utilities/main/DustyTrip", true))()
     else
-        local sgNotSupported = Instance.new("ScreenGui")
-        sgNotSupported.Name = "NotSupportedGui"
-        sgNotSupported.Parent = protectedParent
-        sgNotSupported.IgnoreGuiInset = true
+        -- If unsupported, clear loading elements and show the unsupported frame
+        titleFrame:Destroy()
+        barFrame:Destroy()
 
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 300, 0, 200)
-        frame.Position = UDim2.new(0.5, -150, 0.5, -100)
-        frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        frame.BorderSizePixel = 0
-        frame.Parent = sgNotSupported
+        local unsupportedFrame = Instance.new("Frame")
+        unsupportedFrame.Size = UDim2.new(0, 320, 0, 220)
+        unsupportedFrame.Position = UDim2.new(0.5, -160, 0.5, -110)
+        unsupportedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        unsupportedFrame.BorderSizePixel = 0
+        unsupportedFrame.ZIndex = 100
+        unsupportedFrame.Parent = sg
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 10)
-        corner.Parent = frame
+        corner.Parent = unsupportedFrame
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 0.6, 0)
+        label.Size = UDim2.new(1, 0, 0.45, 0)
         label.BackgroundTransparency = 1
-        label.Text = "Game Not Supported\nID: " .. game.PlaceId .. "\n\nJoin Discord for more"
+        label.Text = "Game Not Supported\nID: " .. game.PlaceId .. "\nJoin Discord for more"
         label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextSize = 18
+        label.TextSize = 16
         label.Font = Enum.Font.GothamBold
-        label.Parent = frame
+        label.ZIndex = 101
+        label.Parent = unsupportedFrame
+
+        local countdownLabel = Instance.new("TextLabel")
+        countdownLabel.Size = UDim2.new(1, 0, 0, 35)
+        countdownLabel.Position = UDim2.new(0, 0, 0.48, 0)
+        countdownLabel.BackgroundTransparency = 1
+        countdownLabel.Text = "5 seconds remaining until destroy GUI"
+        countdownLabel.TextColor3 = Color3.fromRGB(200, 50, 50)
+        countdownLabel.TextSize = 14
+        countdownLabel.Font = Enum.Font.GothamBold
+        countdownLabel.ZIndex = 101
+        countdownLabel.Parent = unsupportedFrame
 
         local copyBtn = Instance.new("TextButton")
-        copyBtn.Size = UDim2.new(0, 200, 0, 40)
-        copyBtn.Position = UDim2.new(0.5, -100, 0.7, 0)
+        copyBtn.Size = UDim2.new(0, 220, 0, 38)
+        copyBtn.Position = UDim2.new(0.5, -110, 0.72, 0)
         copyBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
         copyBtn.Text = "Copy Discord Link"
         copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         copyBtn.Font = Enum.Font.GothamBold
         copyBtn.TextSize = 14
-        copyBtn.Parent = frame
+        copyBtn.ZIndex = 101
+        copyBtn.Parent = unsupportedFrame
 
         local btnCorner = Instance.new("UICorner")
         btnCorner.CornerRadius = UDim.new(0, 8)
@@ -160,21 +190,15 @@ task.spawn(function()
             end
         end)
 
-        local close = Instance.new("TextButton")
-        close.Size = UDim2.new(0, 30, 0, 30)
-        close.Position = UDim2.new(1, -35, 0, 5)
-        close.Text = "X"
-        close.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        close.TextColor3 = Color3.fromRGB(255, 255, 255)
-        close.Font = Enum.Font.GothamBold
-        close.Parent = frame
-
-        local closeCorner = Instance.new("UICorner")
-        closeCorner.CornerRadius = UDim.new(0, 5)
-        closeCorner.Parent = close
-
-        close.MouseButton1Click:Connect(function()
-            sgNotSupported:Destroy()
+        task.spawn(function()
+            for i = 5, 1, -1 do
+                if not unsupportedFrame.Parent then break end
+                countdownLabel.Text = i .. " Seconds Remaining Until Destroy GUI"
+                task.wait(1)
+            end
+            if sg and sg.Parent then
+                sg:Destroy()
+            end
         end)
 
         warn("Game Not Supported. ID: " .. game.PlaceId)

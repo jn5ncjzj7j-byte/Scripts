@@ -25,22 +25,21 @@ local Settings = {
     ShootThroughWalls = false,
     AutoShoot = false,
     AutoHitAll = false,
+    TenShootEnabled = false, -- NEW: Toggle for 10 Hit Remotes Per Shot
     AutoIceAll = false,
     IceWallFlood = false,
-    IceFloodSpeed = 0.1, -- Configurable Ice Flood Speed (Interval in seconds)
-    FOVRadius = 70,
+    IceFloodSpeed = 0.1,
+    FOVRadius = 120,
     ShootCooldown = 0.2,
     MoveButtons = false,
     ButtonScale = 1.0,
-    -- FIRE Button Position Data
     ShootBtnScaleX = 0.8, ShootBtnOffsetX = 0,
     ShootBtnScaleY = 0.6, ShootBtnOffsetY = 0,
-    -- ICE Button Position Data
     IceBtnScaleX = 0.8, IceBtnOffsetX = 0,
     IceBtnScaleY = 0.72, IceBtnOffsetY = 0
 }
 
--- Config Persistence (Auto Save / Load)
+-- Config Persistence
 local CONFIG_FILE = "RUOK_Config.json"
 
 local function SaveConfig()
@@ -67,13 +66,12 @@ LoadConfig()
 local lastShotTime = 0
 local lastHitAllIndex = 1
 local lastHitAllTime = 0
-local HIT_ALL_INTERVAL = 0.2
+local HIT_ALL_INTERVAL = 0.25
 
 local lastIceAllTime = 0
 local ICE_ALL_INTERVAL = 0.1
 
 local lastFloodTime = 0
-
 local lastHealths = {}
 local activeTarget = nil
 local actionButtons = {}
@@ -144,7 +142,7 @@ local function showDamagePopup(character, damageAmount)
             else
                 break
             end
-            RunService.RenderStepped:Wait()
+            task.wait()
         end
         if billboard then billboard:Destroy() end
     end)
@@ -224,7 +222,6 @@ local function createCircleButton(name, text, scaleX, offsetX, scaleY, offsetY)
     stroke.Transparency = 0.5
     stroke.Parent = button
 
-    -- Dragging Logic
     local dragging, dragStart, startPos
     button.InputBegan:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and Settings.MoveButtons then
@@ -284,22 +281,27 @@ local function shootHead(targetPlayer)
     local equippedWeapon = localChar and localChar:FindFirstChildOfClass("Tool")
 
     if headPart and localChar and equippedWeapon then
+        -- Send 10 hits if Ten Shoot is ON, otherwise send 1 hit
+        local shotCount = Settings.TenShootEnabled and 10 or 1
+
         pcall(function()
-            WeaponHitEvent:FireServer(
-                equippedWeapon,
-                {
-                    p = headPart.Position,
-                    pid = 1,
-                    part = headPart,
-                    d = (headPart.Position - Camera.CFrame.Position).Magnitude,
-                    maxDist = 5000,
-                    h = headPart,
-                    m = Enum.Material.Plastic,
-                    n = Vector3.new(0, 1, 0),
-                    t = 0.05,
-                    sid = 1
-                }
-            )
+            for i = 1, shotCount do
+                WeaponHitEvent:FireServer(
+                    equippedWeapon,
+                    {
+                        p = headPart.Position,
+                        pid = 1,
+                        part = headPart,
+                        d = (headPart.Position - Camera.CFrame.Position).Magnitude,
+                        maxDist = 5000,
+                        h = headPart,
+                        m = Enum.Material.Plastic,
+                        n = Vector3.new(0, 1, 0),
+                        t = 0.05,
+                        sid = i
+                    }
+                )
+            end
         end)
     end
 end
@@ -318,7 +320,6 @@ local function placeIceWall()
     placeIceWallAtCharacter(LocalPlayer.Character)
 end
 
--- Create Action Buttons
 local shootButton, shootStroke = createCircleButton("ShootButton", "FIRE", Settings.ShootBtnScaleX, Settings.ShootBtnOffsetX, Settings.ShootBtnScaleY, Settings.ShootBtnOffsetY)
 local iceButton, iceStroke = createCircleButton("IceWallButton", "ICE", Settings.IceBtnScaleX, Settings.IceBtnOffsetX, Settings.IceBtnScaleY, Settings.IceBtnOffsetY)
 
@@ -329,7 +330,6 @@ shootButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- ICE Wall Hold to Spam (0.1s interval)
 local isSpammingIce = false
 iceButton.InputBegan:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not Settings.MoveButtons then
@@ -348,11 +348,10 @@ local function stopIceSpam(input)
         isSpammingIce = false
     end
 end
-
 iceButton.InputEnded:Connect(stopIceSpam)
 
 ---------------------------------------------------------
--- RUOK DRAGGABLE MENU GUI & HIDE BUTTON
+-- MENU GUI & CONTROLS SETUP
 ---------------------------------------------------------
 local mainGui = Instance.new("ScreenGui")
 mainGui.Name = "RUOK_Menu"
@@ -360,8 +359,8 @@ mainGui.Parent = protectedParent
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 230, 0, 520)
-mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.Size = UDim2.new(0, 230, 0, 560) -- Extended size to fit all toggles
+mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = mainGui
@@ -384,8 +383,7 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 8)
 titleCorner.Parent = titleLabel
 
--- Menu Dragging Logic
-local draggingMenu, dragInputMenu, dragStartMenu, startPosMenu
+local draggingMenu, dragStartMenu, startPosMenu
 titleLabel.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         draggingMenu = true
@@ -407,7 +405,6 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Bottom-Right Screen Toggle GUI Button
 local toggleGui = Instance.new("ScreenGui")
 toggleGui.Name = "RUOK_ToggleGui"
 toggleGui.Parent = protectedParent
@@ -432,14 +429,12 @@ end
 
 openMenuBtn.MouseButton1Click:Connect(toggleMenu)
 
--- PC Hotkey (CTRL)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and (input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl) then
         toggleMenu()
     end
 end)
 
--- UI Helper Function for Toggles
 local yOffset = 45
 local function createToggle(name, defaultState, callback)
     local button = Instance.new("TextButton")
@@ -476,10 +471,10 @@ createToggle("ESP Line", Settings.ESPLineEnabled, function(v) Settings.ESPLineEn
 createToggle("Wall Check", not Settings.ShootThroughWalls, function(v) Settings.ShootThroughWalls = not v end)
 createToggle("Auto Shoot", Settings.AutoShoot, function(v) Settings.AutoShoot = v end)
 createToggle("Auto Hit All", Settings.AutoHitAll, function(v) Settings.AutoHitAll = v end)
+createToggle("Ten Shoot", Settings.TenShootEnabled, function(v) Settings.TenShootEnabled = v end) -- Menu Option for 10 Shoot
 createToggle("Auto Ice All", Settings.AutoIceAll, function(v) Settings.AutoIceAll = v end)
 createToggle("Ice Wall Flood", Settings.IceWallFlood, function(v) Settings.IceWallFlood = v end)
 
--- Move Toggle
 createToggle("Move Buttons", Settings.MoveButtons, function(v) 
     Settings.MoveButtons = v 
     local activeColor = v and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 255, 255)
@@ -487,7 +482,6 @@ createToggle("Move Buttons", Settings.MoveButtons, function(v)
     iceStroke.Color = activeColor
 end)
 
--- FOV Size Input
 local fovInputBox = Instance.new("TextBox")
 fovInputBox.Size = UDim2.new(0.9, 0, 0, 30)
 fovInputBox.Position = UDim2.new(0.05, 0, 0, yOffset)
@@ -516,7 +510,6 @@ end)
 
 yOffset = yOffset + 35
 
--- Button Size Input Box (Scale: 0.3 to 5.0)
 local sizeInputBox = Instance.new("TextBox")
 sizeInputBox.Size = UDim2.new(0.9, 0, 0, 30)
 sizeInputBox.Position = UDim2.new(0.05, 0, 0, yOffset)
@@ -546,7 +539,6 @@ end)
 
 yOffset = yOffset + 35
 
--- Ice Flood Speed Input Box (In seconds, e.g. 0.05 or 0.1)
 local speedInputBox = Instance.new("TextBox")
 speedInputBox.Size = UDim2.new(0.9, 0, 0, 30)
 speedInputBox.Position = UDim2.new(0.05, 0, 0, yOffset)
@@ -564,7 +556,7 @@ speedCorner.Parent = speedInputBox
 speedInputBox.FocusLost:Connect(function()
     local num = tonumber(speedInputBox.Text:match("[%d%.]+"))
     if num then
-        num = math.clamp(num, 0.01, 5.0) -- Clamped to a min of 0.01s
+        num = math.clamp(num, 0.01, 5.0)
         Settings.IceFloodSpeed = num
         speedInputBox.Text = "Ice Speed: " .. tostring(num)
         SaveConfig()
@@ -648,7 +640,7 @@ Players.PlayerAdded:Connect(setupPlayerESP)
 Players.PlayerRemoving:Connect(removePlayerESP)
 
 ---------------------------------------------------------
--- MAIN RENDER LOOP
+-- MAIN OPTIMIZED RENDER LOOP
 ---------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     local viewportSize = Camera.ViewportSize
@@ -660,14 +652,18 @@ RunService.RenderStepped:Connect(function()
     activeTarget = nil
     local shortestDistance = Settings.FOVRadius
 
-    -- Find ALL instances named "Force Field" in Workspace
     local ignoreList = {LocalPlayer.Character}
     local searchFolder = Workspace:FindFirstChild("CurrentMap") or Workspace
-    for _, obj in ipairs(searchFolder:GetDescendants()) do
+    for _, obj in ipairs(searchFolder:GetChildren()) do
         if obj.Name == "Force Field" then
             table.insert(ignoreList, obj)
         end
     end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = ignoreList
+    raycastParams.IgnoreWater = true
 
     -- Target detection inside FOV
     for _, player in ipairs(Players:GetPlayers()) do
@@ -686,11 +682,6 @@ RunService.RenderStepped:Connect(function()
                         local isVisible = true
 
                         if not Settings.ShootThroughWalls then
-                            local raycastParams = RaycastParams.new()
-                            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                            raycastParams.FilterDescendantsInstances = ignoreList
-                            raycastParams.IgnoreWater = true
-
                             local rayResult = Workspace:Raycast(Camera.CFrame.Position, head.Position - Camera.CFrame.Position, raycastParams)
                             if not (rayResult and rayResult.Instance:IsDescendantOf(char)) then
                                 isVisible = false
@@ -736,7 +727,6 @@ RunService.RenderStepped:Connect(function()
 
                 local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
 
-                -- Render RED Line ONLY if player is the active target
                 if lineFrame then
                     if Settings.ESPLineEnabled and onScreen and (player == activeTarget) then
                         drawGuiLine(lineFrame, screenCenter, Vector2.new(screenPos.X, screenPos.Y), Color3.fromRGB(255, 0, 0))
@@ -745,7 +735,6 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                -- Highlight / Billboard colors
                 if player == activeTarget then
                     if highlight then
                         highlight.FillColor = Color3.fromRGB(255, 0, 0)
@@ -775,13 +764,13 @@ RunService.RenderStepped:Connect(function()
 
     local currentTime = tick()
 
-    -- Controlled Auto Shoot execution for FOV target
+    -- Auto Shoot
     if Settings.AutoShoot and activeTarget and (currentTime - lastShotTime >= Settings.ShootCooldown) then
         lastShotTime = currentTime
         shootHead(activeTarget)
     end
 
-    -- Auto Hit All Logic
+    -- Auto Hit All
     if Settings.AutoHitAll and (currentTime - lastHitAllTime >= HIT_ALL_INTERVAL) then
         local allPlayers = Players:GetPlayers()
         if #allPlayers > 1 then
@@ -797,11 +786,6 @@ RunService.RenderStepped:Connect(function()
                     if not Settings.ShootThroughWalls then
                         local targetHead = targetHitPlayer.Character:FindFirstChild("Head")
                         if targetHead then
-                            local raycastParams = RaycastParams.new()
-                            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                            raycastParams.FilterDescendantsInstances = ignoreList
-                            raycastParams.IgnoreWater = true
-
                             local rayResult = Workspace:Raycast(Camera.CFrame.Position, targetHead.Position - Camera.CFrame.Position, raycastParams)
                             if not (rayResult and rayResult.Instance:IsDescendantOf(targetHitPlayer.Character)) then
                                 isHitValid = false
@@ -821,7 +805,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Instant Simultaneous Auto Ice All Logic
     if Settings.AutoIceAll and (currentTime - lastIceAllTime >= ICE_ALL_INTERVAL) then
         lastIceAllTime = currentTime
         for _, enemyPlayer in ipairs(Players:GetPlayers()) do
@@ -834,7 +817,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Configurable Spatial Ice Wall Flood Logic
     if Settings.IceWallFlood and (currentTime - lastFloodTime >= Settings.IceFloodSpeed) then
         lastFloodTime = currentTime
         local currentMap = Workspace:FindFirstChild("CurrentMap") or Workspace

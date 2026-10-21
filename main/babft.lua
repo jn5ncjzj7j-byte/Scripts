@@ -29,6 +29,7 @@ end
 local moveSpeed = 500
 local stageWaitTime = 0.55
 local isRunning = false
+local SAVE_FILE_NAME = "MisgHub_AutoSave.json"
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "StageTerminalGui"
@@ -163,7 +164,7 @@ commandInput.Size = UDim2.new(1, -35, 1, 0)
 commandInput.Position = UDim2.new(0, 28, 0, 0)
 commandInput.BackgroundTransparency = 1
 commandInput.Text = ""
-commandInput.PlaceholderText = "type 'start', 'stop', or 'help'..."
+commandInput.PlaceholderText = "type 'start', 'autostart', 'stop', or 'help'..."
 commandInput.PlaceholderColor3 = Color3.fromRGB(80, 80, 80)
 commandInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 commandInput.TextSize = 14
@@ -227,7 +228,7 @@ if isMobile then
 else
 	printToTerminal("Terminal | Press [Right Ctrl] to hide/show.", Color3.fromRGB(0, 255, 100))
 end
-printToTerminal("Type 'start' to begin Auto Farm, 'stop' to cancel.", Color3.fromRGB(150, 150, 150))
+printToTerminal("Type 'start' or 'autostart' to begin Auto Farm.", Color3.fromRGB(150, 150, 150))
 printToTerminal("------------------------------------------------", Color3.fromRGB(60, 60, 60))
 
 local function getOrderedStages()
@@ -282,7 +283,6 @@ end
 local function getTargetPosition(targetInstance)
 	if targetInstance:IsA("Model") then
 		local cf, size = targetInstance:GetBoundingBox()
-		-- Shift towards the front face (-Z direction relative to the stage orientation)
 		return (cf + (cf.LookVector * (size.Z / 2))).Position + Vector3.new(0, 3, 0)
 	elseif targetInstance:IsA("BasePart") then
 		local cf = targetInstance.CFrame
@@ -314,23 +314,46 @@ local function getMovablePart()
 	return hrp
 end
 
-local function startSequence()
-	if isRunning then
-		printToTerminal("Auto Farm is already running!", Color3.fromRGB(255, 200, 0))
-		return
+local function saveAutoState(state)
+	if writefile then
+		pcall(function()
+			writefile(SAVE_FILE_NAME, tostring(state))
+		end)
 	end
-	
-	local stages = getOrderedStages()
-	if #stages == 0 then
-		printToTerminal("Error: No stages found!", Color3.fromRGB(255, 80, 80))
+end
+
+local function loadAutoState()
+	if readfile and isfile and isfile(SAVE_FILE_NAME) then
+		local success, content = pcall(function()
+			return readfile(SAVE_FILE_NAME)
+		end)
+		if success and content and content:match("true") then
+			return true
+		end
+	end
+	return false
+end
+
+local function startSequence(isAuto)
+	if isRunning then
 		return
 	end
 	
 	isRunning = true
-	printToTerminal(string.format("Auto Farm started. Speed: %d studs/s", moveSpeed), Color3.fromRGB(0, 255, 100))
+	if isAuto then
+		printToTerminal(string.format("Auto-Start active: Looping Auto Farm! Speed: %d", moveSpeed), Color3.fromRGB(0, 255, 100))
+	else
+		printToTerminal(string.format("Auto Farm started. Speed: %d studs/s", moveSpeed), Color3.fromRGB(0, 255, 100))
+	end
 	
 	task.spawn(function()
 		while isRunning do
+			local stages = getOrderedStages()
+			if #stages == 0 then
+				printToTerminal("Error: No stages found!", Color3.fromRGB(255, 80, 80))
+				break
+			end
+			
 			local character = player.Character or player.CharacterAdded:Wait()
 			local humanoid = character:WaitForChild("Humanoid", 10)
 			
@@ -342,7 +365,7 @@ local function startSequence()
 				diedConn = humanoid.Died:Connect(function()
 					isDead = true
 					if reachedEnd then
-						printToTerminal("Reached Gold Chest!", Color3.fromRGB(0, 255, 150))
+						printToTerminal("Reached Gold Chest! Restarting next run...", Color3.fromRGB(0, 255, 150))
 					else
 						printToTerminal("Player died during Auto Farm! Waiting for respawn...", Color3.fromRGB(255, 150, 0))
 					end
@@ -360,12 +383,6 @@ local function startSequence()
 				if not part then break end
 				
 				local targetPos = getTargetPosition(target)
-				local targetName = target.Name
-				if target.Parent and target.Parent.Name == "WaterfallEnd" then
-					targetName = "TheEnd.WaterfallEnd.Wall"
-				elseif target.Parent and target.Parent.Name == "GoldenChest" then
-					targetName = "TheEnd.GoldenChest.Trigger"
-				end
 				
 				while isRunning and not isDead do
 					local currentPos = part.Position
@@ -400,13 +417,14 @@ local function startSequence()
 end
 
 local function stopSequence()
+	saveAutoState(false)
 	if not isRunning then
 		printToTerminal("Auto Farm is not currently running.", Color3.fromRGB(150, 150, 150))
 		return
 	end
 	
 	isRunning = false
-	printToTerminal("Auto Farm stopped.", Color3.fromRGB(255, 80, 80))
+	printToTerminal("Auto Farm stopped & Auto-Save disabled.", Color3.fromRGB(255, 80, 80))
 end
 
 commandInput.FocusLost:Connect(function(enterPressed)
@@ -420,7 +438,13 @@ commandInput.FocusLost:Connect(function(enterPressed)
 	printToTerminal("> " .. text, Color3.fromRGB(255, 255, 255))
 	
 	if text == "start" or text == "on" then
-		startSequence()
+		startSequence(false)
+	elseif text == "autostart" then
+		saveAutoState(true)
+		printToTerminal("Auto-Save enabled! Auto Farm will now run automatically on execution/rejoin.", Color3.fromRGB(0, 255, 100))
+		if not isRunning then
+			startSequence(true)
+		end
 	elseif text == "stop" or text == "off" then
 		stopSequence()
 	elseif text == "clear" then
@@ -438,10 +462,19 @@ commandInput.FocusLost:Connect(function(enterPressed)
 	elseif text == "help" then
 		printToTerminal("Commands:", Color3.fromRGB(255, 255, 100))
 		printToTerminal(" - start / on : Start Auto Farm", Color3.fromRGB(200, 200, 200))
-		printToTerminal(" - stop / off : Cancel Auto Farm", Color3.fromRGB(200, 200, 200))
+		printToTerminal(" - autostart  : Start Auto Farm + Auto-Save", Color3.fromRGB(200, 200, 200))
+		printToTerminal(" - stop / off : Cancel Auto Farm & Auto-Save", Color3.fromRGB(200, 200, 200))
 		printToTerminal(" - speed [n]  : Changes Tween speed", Color3.fromRGB(200, 200, 200))
 		printToTerminal(" - clear      : Clears terminal history", Color3.fromRGB(200, 200, 200))
 	else
 		printToTerminal("Unknown command. Type 'help' for options.", Color3.fromRGB(255, 80, 80))
+	end
+end)
+
+-- Automatically run auto-farm right on execution if the config value is true!
+task.spawn(function()
+	task.wait(1)
+	if loadAutoState() then
+		startSequence(true)
 	end
 end)

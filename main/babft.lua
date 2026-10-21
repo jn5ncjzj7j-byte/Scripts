@@ -27,7 +27,7 @@ if existingGui then
 end
 
 local moveSpeed = 500
-local stageWaitTime = 0.4
+local stageWaitTime = 0.55
 local isRunning = false
 
 local screenGui = Instance.new("ScreenGui")

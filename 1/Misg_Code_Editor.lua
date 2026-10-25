@@ -1,4 +1,3 @@
--- Mobile Code Editor (no execute) - Console + Caret fix
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -86,7 +85,6 @@ local tabs, current, nextId = {}, 1, 1
 local colorMode = true
 local focused = false
 
--- GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "CodeEditorGui"; gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
 gui.DisplayOrder = 999; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -116,7 +114,7 @@ end
 
 local title = Instance.new("TextLabel", top)
 title.Size = UDim2.new(0,60,1,0); title.Position = UDim2.new(0,8,0,0)
-title.BackgroundTransparency = 1; title.Text = "Editor"
+title.BackgroundTransparency = 1; title.Text = "Misg Code Editor"
 title.TextColor3 = C.text; title.Font = Enum.Font.GothamBold; title.TextSize = 13
 title.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -137,7 +135,6 @@ local copyBtn  = mkBtn("Copy All", 66, C.btn, btnRow); copyBtn.LayoutOrder = 2
 local hideBtn  = mkBtn("_", 28, Color3.fromRGB(90,90,90), btnRow); hideBtn.LayoutOrder = 3
 local closeBtn = mkBtn("X", 28, Color3.fromRGB(200,50,50), btnRow); closeBtn.LayoutOrder = 4
 
--- Tab bar
 local tabBar = Instance.new("ScrollingFrame", main)
 tabBar.Position = UDim2.new(0,0,0,36); tabBar.Size = UDim2.new(1,0,0,30)
 tabBar.BackgroundColor3 = C.bar; tabBar.BorderSizePixel = 0
@@ -147,7 +144,6 @@ local tl = Instance.new("UIListLayout", tabBar)
 tl.FillDirection = Enum.FillDirection.Horizontal; tl.Padding = UDim.new(0,2)
 tl.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Editor area
 local EDITOR_POS = UDim2.new(0,0,0,68)
 local scroll = Instance.new("ScrollingFrame", main)
 scroll.Position = EDITOR_POS; scroll.Size = UDim2.new(1,0,1,-104)
@@ -181,7 +177,6 @@ box.TextColor3 = C.text; box.Text = ""
 box.TextTransparency = 0; box.ZIndex = 2
 box.PlaceholderText = "-- type code here"; box.PlaceholderColor3 = Color3.fromRGB(110,110,110)
 
--- Colors only show when NOT typing, so the caret is always exact
 local function applyMode()
 	if colorMode and not focused then
 		view.Visible = true
@@ -192,7 +187,6 @@ local function applyMode()
 	end
 end
 
--- Bottom bar
 local bottom = Instance.new("Frame", main)
 bottom.Position = UDim2.new(0,0,1,-36); bottom.Size = UDim2.new(1,0,0,36)
 bottom.BackgroundColor3 = C.bar; bottom.BorderSizePixel = 0
@@ -219,7 +213,7 @@ bl2.SortOrder = Enum.SortOrder.LayoutOrder
 
 local consoleBtn = mkBtn("Console", 62, Color3.fromRGB(120,80,170), botRow); consoleBtn.LayoutOrder = 1
 local colorBtn = mkBtn("Color: ON", 74, Color3.fromRGB(190,120,30), botRow); colorBtn.LayoutOrder = 2
-local lineBtn = mkBtn("↵ Line", 70, Color3.fromRGB(40,150,90), botRow); lineBtn.LayoutOrder = 3
+local lineBtn = mkBtn("+ Line", 70, Color3.fromRGB(40,150,90), botRow); lineBtn.LayoutOrder = 3
 lineBtn.Size = UDim2.new(0,70,0,28)
 
 colorBtn.MouseButton1Click:Connect(function()
@@ -229,7 +223,6 @@ colorBtn.MouseButton1Click:Connect(function()
 	setStatus(colorMode and "Colors show when not typing" or "Colors off")
 end)
 
--- Console panel
 local consolePanel = Instance.new("Frame", main)
 consolePanel.BackgroundColor3 = Color3.fromRGB(20,20,22); consolePanel.BorderSizePixel = 0
 consolePanel.Size = UDim2.new(1,0,1,-104)
@@ -327,7 +320,6 @@ cDev.MouseButton1Click:Connect(function()
 	if not ok then setStatus("Could not open Dev Console") end
 end)
 
--- Files
 local function tabPath(id) return FOLDER.."/tab_"..id..".lua" end
 local function saveIndex()
 	if not HAS_FS then return end
@@ -342,13 +334,11 @@ local function saveTab(t)
 	end
 end
 
--- Cursor tracking (for New Line button)
 local lastCursor = nil
 box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
 	if box.CursorPosition ~= -1 then lastCursor = box.CursorPosition end
 end)
 
--- Tabs
 local renderTabs
 local function switchTo(i, animate)
 	current = math.clamp(i, 1, #tabs)
@@ -411,7 +401,6 @@ function renderTabs(animIndex)
 	end)
 end
 
--- Load saved tabs
 if HAS_FS and isfile(FOLDER.."/_index.txt") then
 	local ok, data = pcall(readfile, FOLDER.."/_index.txt")
 	if ok and data then
@@ -427,7 +416,6 @@ if HAS_FS and isfile(FOLDER.."/_index.txt") then
 end
 if #tabs == 0 then tabs[1] = {id = 1, name = "Script 1", code = ""} end
 
--- Text changes + autosave
 local saveToken = 0
 box:GetPropertyChangedSignal("Text"):Connect(function()
 	local ok, res = pcall(highlight, box.Text)
@@ -455,7 +443,6 @@ box.FocusLost:Connect(function()
 	applyMode()
 end)
 
--- New Line button
 lineBtn.MouseButton1Click:Connect(function()
 	local txt = box.Text
 	local pos = math.clamp(lastCursor or (#txt + 1), 1, #txt + 1)
@@ -469,7 +456,6 @@ lineBtn.MouseButton1Click:Connect(function()
 	tween(lineBtn, 0.2, {Size = UDim2.new(0,70,0,28)}, Enum.EasingStyle.Back)
 end)
 
--- Other buttons
 copyBtn.MouseButton1Click:Connect(function()
 	local fn = setclipboard or toclipboard or (Clipboard and Clipboard.set)
 	if fn then pcall(fn, box.Text); copyBtn.Text = "Copied!" else copyBtn.Text = "No clip" end
@@ -477,7 +463,6 @@ copyBtn.MouseButton1Click:Connect(function()
 end)
 clearBtn.MouseButton1Click:Connect(function() box.Text = "" end)
 
--- Slide animations
 local busy = false
 
 local mini = mkBtn("Editor", 64, C.btn, gui)
@@ -520,7 +505,6 @@ closeBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
--- Drag (by top bar)
 do
 	local dragging, startPos, startInput
 	top.InputBegan:Connect(function(i)

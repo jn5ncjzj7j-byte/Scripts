@@ -6,14 +6,10 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local protectedParent = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or CoreGui
 
--- SINGLETON CHECK: ถ้ามี GUI นี้อยู่แล้ว จะหยุดการทำงานทันที (ไม่รันซ้ำ)
 if protectedParent:FindFirstChild("misg-unti-muti-gui") then
     return
 end
 
--- ==========================================
--- ตั้งค่าลิงก์สคริปต์ตัวล่างจาก GitHub ตรงนี้
--- ==========================================
 local MapLoaderScriptUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/1/map.lua"
 local DiscordLink = "https://discord.gg/dZjcYQN9xe"
 
@@ -21,9 +17,6 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- ==========================================
--- MISG HUB LOADING SCREEN ANIMATION
--- ==========================================
 local sg = Instance.new("ScreenGui")
 sg.Name = "misg-unti-muti-gui"
 sg.Parent = protectedParent
@@ -101,11 +94,8 @@ local loadTween = TweenService:Create(progress, tweenInfo, {
 })
 loadTween:Play()
 
--- ==========================================
--- LOAD HANDLER (รอโหลดเสร็จแล้วค่อยทำต่อ)
--- ==========================================
 task.spawn(function()
-    task.wait(4) -- รออนิเมชั่นโหลด 4 วินาที
+    task.wait(2)
     
     local fadeInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     TweenService:Create(titleFrame, fadeInfo, {BackgroundTransparency = 1}):Play()
@@ -117,16 +107,13 @@ task.spawn(function()
     
     task.wait(0.8)
     
-    -- เช็คก่อนว่ามีสคริปต์ตัวล่างอยู่จริงไหม (หรือจะเขียนเช็ค PlaceId ในนี้คร่าวๆ ก่อนก็ได้)
-    -- โดยในที่นี้เราจะซ่อนหน้าโหลดแล้วสั่งรันสคริปต์ตัวล่างจาก GitHub
-    sg.Enabled = false -- ซ่อนหน้าโหลดไว้ (ไม่ทำลาย เพื่อกันเปิดซ้ำตามเงื่อนไข)
+    sg.Enabled = false
 
     local success, err = pcall(function()
         loadstring(game:HttpGet(MapLoaderScriptUrl, true))()
     end)
 
     if not success then
-        -- ถ้าดึงสคริปต์ตัวล่างไม่สำเร็จ หรือเกมไม่รองรับ (สามารถจัดการแจ้งเตือนตรงนี้ต่อได้)
         sg.Enabled = true
         titleFrame:Destroy()
         barFrame:Destroy()
@@ -182,11 +169,11 @@ task.spawn(function()
         copyBtn.MouseButton1Click:Connect(function()
             if setclipboard then
                 setclipboard(DiscordLink)
-                copyBtn.Text = "Copied!"
+                copyBtn.Text = "Copied."
                 task.wait(2)
-                copyBtn.Text = "Copy Discord Link"
+                copyBtn.Text = "Copy Discord Link."
             else
-                copyBtn.Text = "Executor not supported"
+                copyBtn.Text = "Executor not supported."
             end
         end)
 

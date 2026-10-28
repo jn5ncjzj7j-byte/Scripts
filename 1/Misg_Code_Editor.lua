@@ -3,10 +3,12 @@ local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local LogService = game:GetService("LogService")
 local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
 
 local parent = (gethui and gethui()) or game:FindFirstChildOfClass("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
-local old = parent:FindFirstChild("CodeEditorGui")
-if old then old:Destroy() end
+for _, v in ipairs(parent:GetChildren()) do
+	if v:GetAttribute("MisgEditor") then v:Destroy() end
+end
 
 local FOLDER = "Misg_CodeEditor"
 local HAS_FS = writefile and readfile and isfile and makefolder and isfolder and true or false
@@ -86,17 +88,20 @@ local colorMode = true
 local focused = false
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "CodeEditorGui"; gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
+gui.Name = HttpService:GenerateGUID(false)
+gui:SetAttribute("MisgEditor", true)
+gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
 gui.DisplayOrder = 999; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = parent
 
-local shownPos = UDim2.new(0.04,0,0.05,0)
+local shownPos = UDim2.new(0.04,0,0.15,0)
 local function hiddenPos() return UDim2.new(shownPos.X.Scale, shownPos.X.Offset, -1, 0) end
 
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.new(0.92,0,0.7,0); main.Position = hiddenPos()
 main.BackgroundColor3 = C.bg; main.BorderSizePixel = 0
 main.ClipsDescendants = true
+main.Visible = false
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,8)
 
 local top = Instance.new("Frame", main)
@@ -340,6 +345,60 @@ box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
 end)
 
 local renderTabs
+
+local renameFrame = Instance.new("Frame", main)
+renameFrame.AnchorPoint = Vector2.new(0.5,0.5)
+renameFrame.Position = UDim2.new(0.5,0,0.5,0)
+renameFrame.Size = UDim2.new(0.8,0,0,110)
+renameFrame.BackgroundColor3 = C.bar; renameFrame.BorderSizePixel = 0
+renameFrame.ZIndex = 20; renameFrame.Visible = false
+Instance.new("UICorner", renameFrame).CornerRadius = UDim.new(0,8)
+local rStroke = Instance.new("UIStroke", renameFrame)
+rStroke.Color = C.btn; rStroke.Thickness = 1
+
+local rTitle = Instance.new("TextLabel", renameFrame)
+rTitle.Size = UDim2.new(1,-16,0,24); rTitle.Position = UDim2.new(0,8,0,6)
+rTitle.BackgroundTransparency = 1; rTitle.Text = "Rename tab"; rTitle.ZIndex = 21
+rTitle.TextColor3 = C.text; rTitle.Font = Enum.Font.GothamBold; rTitle.TextSize = 14
+rTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local renameBox = Instance.new("TextBox", renameFrame)
+renameBox.Size = UDim2.new(1,-16,0,28); renameBox.Position = UDim2.new(0,8,0,34)
+renameBox.BackgroundColor3 = C.bg; renameBox.BorderSizePixel = 0; renameBox.ZIndex = 21
+renameBox.TextColor3 = C.text; renameBox.Font = Enum.Font.Gotham; renameBox.TextSize = 14
+renameBox.ClearTextOnFocus = false; renameBox.Text = ""
+renameBox.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", renameBox).CornerRadius = UDim.new(0,5)
+local rPad = Instance.new("UIPadding", renameBox)
+rPad.PaddingLeft = UDim.new(0,6)
+
+local rOk = mkBtn("OK", 80, Color3.fromRGB(40,150,90), renameFrame)
+rOk.AnchorPoint = Vector2.new(1,1); rOk.Position = UDim2.new(1,-8,1,-8); rOk.ZIndex = 21
+local rCancel = mkBtn("Cancel", 80, Color3.fromRGB(150,60,60), renameFrame)
+rCancel.AnchorPoint = Vector2.new(1,1); rCancel.Position = UDim2.new(1,-94,1,-8); rCancel.ZIndex = 21
+
+local renameTarget = nil
+local function openRename(t)
+	renameTarget = t
+	renameBox.Text = t.name
+	renameFrame.Visible = true
+	renameBox:CaptureFocus()
+end
+local function closeRename(apply)
+	if apply and renameTarget then
+		local n = renameBox.Text:gsub("[\r\n]", ""):match("^%s*(.-)%s*$")
+		if n and n ~= "" then
+			renameTarget.name = n:sub(1, 24)
+			saveIndex()
+			renderTabs()
+		end
+	end
+	renameTarget = nil
+	renameFrame.Visible = false
+end
+rOk.MouseButton1Click:Connect(function() closeRename(true) end)
+rCancel.MouseButton1Click:Connect(function() closeRename(false) end)
+
 local function switchTo(i, animate)
 	current = math.clamp(i, 1, #tabs)
 	lastCursor = nil
@@ -349,6 +408,10 @@ local function switchTo(i, animate)
 		scroll.Position = UDim2.new(0,0,0,EDITOR_POS.Y.Offset + 24)
 		tween(scroll, 0.3, {Position = EDITOR_POS})
 	end
+end
+
+local function isPress(inp)
+	return inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1
 end
 
 function renderTabs(animIndex)
@@ -364,7 +427,25 @@ function renderTabs(animIndex)
 		b.Size = UDim2.new(0,76,1,0); b.BackgroundTransparency = 1
 		b.Text = t.name; b.TextColor3 = C.text; b.Font = Enum.Font.Gotham
 		b.TextSize = 13; b.TextTruncate = Enum.TextTruncate.AtEnd
+		local holdId, long = 0, false
+		b.InputBegan:Connect(function(inp)
+			if isPress(inp) then
+				holdId += 1
+				local my = holdId
+				long = false
+				task.delay(0.5, function()
+					if holdId == my then
+						long = true
+						openRename(t)
+					end
+				end)
+			end
+		end)
+		b.InputEnded:Connect(function(inp)
+			if isPress(inp) then holdId += 1 end
+		end)
 		b.MouseButton1Click:Connect(function()
+			if long then long = false return end
 			if i ~= current then switchTo(i, true) end
 		end)
 		local x = Instance.new("TextButton", f)
@@ -392,7 +473,15 @@ function renderTabs(animIndex)
 	add.Parent = tabBar
 	add.MouseButton1Click:Connect(function()
 		nextId += 1
-		tabs[#tabs+1] = {id = nextId, name = "Script "..nextId, code = ""}
+		local used = {}
+		for _, tb in ipairs(tabs) do
+			local n = tb.name:match("^Script (%d+)$")
+			if n then used[tonumber(n)] = true end
+		end
+		local maxN = 0
+		for n in pairs(used) do maxN = math.max(maxN, n) end
+		local num = maxN > 0 and maxN + 1 or 1
+		tabs[#tabs+1] = {id = nextId, name = "Script "..num, code = ""}
 		saveIndex(); saveTab(tabs[#tabs])
 		switchTo(#tabs, true)
 		task.delay(0.35, function()
@@ -466,7 +555,7 @@ clearBtn.MouseButton1Click:Connect(function() box.Text = "" end)
 local busy = false
 
 local mini = mkBtn("Editor", 64, C.btn, gui)
-mini.Size = UDim2.new(0,64,0,30); mini.Position = UDim2.new(0,-80,0,60); mini.Visible = false
+mini.Size = UDim2.new(0,64,0,30); mini.Position = UDim2.new(0,-80,0,60); mini.Visible = true
 
 local function hideGui()
 	if busy then return end
@@ -530,5 +619,4 @@ switchTo(1)
 applyMode()
 setStatus(HAS_FS and "Auto-save on ("..FOLDER..")" or "Auto-save unavailable")
 
-busy = true
-tween(main, 0.5, {Position = shownPos}, Enum.EasingStyle.Back).Completed:Connect(function() busy = false end)
+tween(mini, 0.4, {Position = UDim2.new(0,10,0,60)}, Enum.EasingStyle.Back)

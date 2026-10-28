@@ -5,7 +5,7 @@ local CONFIG = {
     GuiName = "misg-unti-muti-gui",
     MapLoaderUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/1/map.lua",
     DiscordLink = "https://discord.gg/dZjcYQN9xe",
-    LoadTime = 2.5,
+    LoadTime = 1.5,
     FadeTime = 0.8,
 }
 

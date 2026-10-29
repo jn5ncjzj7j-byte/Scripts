@@ -2,7 +2,7 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 
 local CONFIG = {
-    GuiName = "misg-unti-muti-gui",
+    GuiName = "Misg_Hub",
     MapLoaderUrl = "https://github.com/jn5ncjzj7j-byte/Scripts/raw/refs/heads/main/1/map.lua",
     DiscordLink = "https://discord.gg/dZjcYQN9xe",
     LoadTime = 1.5,

@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
 local LogService = game:GetService("LogService")
 local StarterGui = game:GetService("StarterGui")
 local HttpService = game:GetService("HttpService")
@@ -15,6 +16,13 @@ local FOLDER = "Misg_CodeEditor"
 local HAS_FS = writefile and readfile and isfile and makefolder and isfolder and true or false
 if HAS_FS and not isfolder(FOLDER) then pcall(makefolder, FOLDER) end
 
+local conns = {}
+local function bind(sig, fn)
+	local c = sig:Connect(fn)
+	conns[#conns+1] = c
+	return c
+end
+
 local function tween(obj, t, props, style, dir)
 	local tw = TweenService:Create(obj, TweenInfo.new(t, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), props)
 	tw:Play()
@@ -25,6 +33,7 @@ local C = {
 	bg = Color3.fromRGB(30,30,30), bar = Color3.fromRGB(37,37,38),
 	tab = Color3.fromRGB(45,45,48), tabOn = Color3.fromRGB(30,30,30),
 	btn = Color3.fromRGB(0,122,204), text = Color3.fromRGB(212,212,212),
+	fav = Color3.fromRGB(230,180,50)
 }
 local HL = {
 	keyword="#569CD6", string="#CE9178", number="#B5CEA8", comment="#6A9955",
@@ -87,6 +96,7 @@ end
 local tabs, current, nextId = {}, 1, 1
 local colorMode = true
 local focused = false
+local searchText = ""
 
 local gui = Instance.new("ScreenGui")
 do
@@ -98,28 +108,12 @@ gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
 gui.DisplayOrder = 999; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = parent
 
-local galaxyColors = {
-	Color3.fromRGB(60,140,255),
-	Color3.fromRGB(120,80,255),
-	Color3.fromRGB(255,80,200),
-	Color3.fromRGB(255,150,50),
-	Color3.fromRGB(60,140,255),
-}
-local contrastColors = {
-	Color3.fromRGB(255,80,200),
-	Color3.fromRGB(60,200,100),
-	Color3.fromRGB(60,140,255),
-	Color3.fromRGB(120,80,255),
-	Color3.fromRGB(255,80,200),
-}
-
-local function getLerpedColor(colors, percent)
-	local total = #colors - 1
-	local scaled = percent * total
-	local i = math.floor(scaled) + 1
-	local f = scaled - math.floor(scaled)
-	if i >= #colors then return colors[#colors] end
-	return colors[i]:Lerp(colors[i+1], f)
+local function rainbow(off)
+	local kps = {}
+	for i = 0, 8 do
+		kps[#kps+1] = ColorSequenceKeypoint.new(i/8, Color3.fromHSV((i/8 + off) % 1, 0.65, 1))
+	end
+	return ColorSequence.new(kps)
 end
 
 local shownPos = UDim2.new(0.04,0,0.15,0)
@@ -135,8 +129,10 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0,8)
 local mainStroke = Instance.new("UIStroke", main)
 mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 mainStroke.LineJoinMode = Enum.LineJoinMode.Round
-mainStroke.Color = galaxyColors[1]
-mainStroke.Thickness = 1.75
+mainStroke.Color = Color3.new(1,1,1)
+mainStroke.Thickness = 2
+local mainGrad = Instance.new("UIGradient", mainStroke)
+mainGrad.Color = rainbow(0)
 
 local top = Instance.new("Frame", main)
 top.Size = UDim2.new(1,0,0,36); top.BackgroundColor3 = C.bar; top.BorderSizePixel = 0
@@ -187,17 +183,36 @@ local copyBtn  = mkBtn("Copy All", 66, C.btn, btnRow); copyBtn.LayoutOrder = 2
 local hideBtn  = mkBtn("_", 28, Color3.fromRGB(90,90,90), btnRow); hideBtn.LayoutOrder = 3
 local closeBtn = mkBtn("X", 28, Color3.fromRGB(200,50,50), btnRow); closeBtn.LayoutOrder = 4
 
+local toolBar = Instance.new("Frame", main)
+toolBar.Position = UDim2.new(0,0,0,36); toolBar.Size = UDim2.new(1,0,0,26)
+toolBar.BackgroundColor3 = C.bar; toolBar.BorderSizePixel = 0
+
+local searchBox = Instance.new("TextBox", toolBar)
+searchBox.Size = UDim2.new(0,120,1,-6); searchBox.Position = UDim2.new(0,6,0,3)
+searchBox.BackgroundColor3 = C.bg; searchBox.BorderSizePixel = 0
+searchBox.TextColor3 = C.text; searchBox.Font = Enum.Font.Gotham; searchBox.TextSize = 12
+searchBox.PlaceholderText = "Search tabs..."; searchBox.PlaceholderColor3 = Color3.fromRGB(110,110,110)
+searchBox.TextXAlignment = Enum.TextXAlignment.Left; searchBox.ClearTextOnFocus = false
+searchBox.Text = ""
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0,4)
+local sPad = Instance.new("UIPadding", searchBox)
+sPad.PaddingLeft = UDim.new(0,6)
+
+local delAllBtn = mkBtn("Delete All", 65, Color3.fromRGB(180,50,50), toolBar)
+delAllBtn.AnchorPoint = Vector2.new(1,0); delAllBtn.Position = UDim2.new(1,-6,0,0)
+delAllBtn.Size = UDim2.new(0,65,0,20); delAllBtn.TextSize = 11
+
 local tabBar = Instance.new("ScrollingFrame", main)
-tabBar.Position = UDim2.new(0,0,0,36); tabBar.Size = UDim2.new(1,0,0,30)
+tabBar.Position = UDim2.new(0,0,0,62); tabBar.Size = UDim2.new(1,0,0,30)
 tabBar.BackgroundColor3 = C.bar; tabBar.BorderSizePixel = 0
 tabBar.ScrollBarThickness = 0; tabBar.ScrollingDirection = Enum.ScrollingDirection.X
 tabBar.AutomaticCanvasSize = Enum.AutomaticSize.X; tabBar.CanvasSize = UDim2.new()
 local tl = Instance.new("UIListLayout", tabBar)
 tl.FillDirection = Enum.FillDirection.Horizontal; tl.Padding = UDim.new(0,2); tl.SortOrder = Enum.SortOrder.LayoutOrder
 
-local EDITOR_POS = UDim2.new(0,0,0,68)
+local EDITOR_POS = UDim2.new(0,0,0,92)
 local scroll = Instance.new("ScrollingFrame", main)
-scroll.Position = EDITOR_POS; scroll.Size = UDim2.new(1,0,1,-104)
+scroll.Position = EDITOR_POS; scroll.Size = UDim2.new(1,0,1,-128)
 scroll.BackgroundColor3 = C.bg; scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 6; scroll.ScrollingDirection = Enum.ScrollingDirection.XY
 scroll.AutomaticCanvasSize = Enum.AutomaticSize.XY; scroll.CanvasSize = UDim2.new()
@@ -214,10 +229,57 @@ local view = Instance.new("TextLabel", scroll)
 setupText(view); view.RichText = true; view.Text = ""; view.TextColor3 = C.text; view.ZIndex = 1
 
 local box = Instance.new("TextBox", scroll)
-setupText(box); box.AutomaticSize = Enum.AutomaticSize.None; box.Size = UDim2.new(1,-6,1,0)
+setupText(box)
 box.MultiLine = true; box.ClearTextOnFocus = false; box.TextEditable = true
 box.TextColor3 = C.text; box.Text = ""; box.TextTransparency = 0; box.ZIndex = 2
 box.PlaceholderText = "-- type code here (Ctrl+Enter to run)"; box.PlaceholderColor3 = Color3.fromRGB(110,110,110)
+
+local function fitText()
+	local s = scroll.AbsoluteSize
+	local sz = UDim2.fromOffset(math.max(s.X - 6, 10), math.max(s.Y, 10))
+	view.Size = sz
+	box.Size = sz
+end
+scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitText)
+fitText()
+
+local charW, charH = 9, 16
+pcall(function()
+	local s = TextService:GetTextSize("A", 16, Enum.Font.Code, Vector2.new(10000, 10000))
+	if s.X > 0 and s.Y > 0 then charW, charH = s.X, s.Y end
+end)
+
+local function posFromPoint(pt)
+	local txt = box.Text
+	local x = pt.X - box.AbsolutePosition.X - 6
+	local y = pt.Y - box.AbsolutePosition.Y - 4
+	local lineIdx = math.max(0, math.floor(y / charH))
+	local idx = 1
+	local n = 0
+	while n < lineIdx do
+		local nl = txt:find("\n", idx, true)
+		if not nl then return #txt + 1 end
+		idx = nl + 1
+		n += 1
+	end
+	local nl = txt:find("\n", idx, true) or (#txt + 1)
+	local len = nl - idx
+	local col = math.clamp(math.floor(x / charW + 0.5), 0, len)
+	return idx + col
+end
+
+local function indentBefore(txt, upto)
+	local prefix = txt:sub(1, upto - 1)
+	local line = prefix:match("[^\n]*$") or ""
+	local ws = line:match("^[ \t]*") or ""
+	local trimmed = line:match("^%s*(.-)%s*$") or ""
+	local extra = ""
+	if trimmed:match("%f[%w_]then$") or trimmed:match("%f[%w_]do$") or trimmed:match("%f[%w_]else$")
+		or trimmed:match("%f[%w_]repeat$") or trimmed:match("function%s*[%w_%.:]*%s*%b()$") or trimmed:match("{$") then
+		extra = "    "
+	end
+	return ws .. extra
+end
 
 local function applyMode()
 	if colorMode and not focused then view.Visible = true; box.TextTransparency = 1
@@ -272,8 +334,10 @@ Instance.new("UICorner", consoleWin).CornerRadius = UDim.new(0,8)
 local consoleStroke = Instance.new("UIStroke", consoleWin)
 consoleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 consoleStroke.LineJoinMode = Enum.LineJoinMode.Round
-consoleStroke.Color = contrastColors[1]
-consoleStroke.Thickness = 1.75
+consoleStroke.Color = Color3.new(1,1,1)
+consoleStroke.Thickness = 2
+local consoleGrad = Instance.new("UIGradient", consoleStroke)
+consoleGrad.Color = rainbow(0.5)
 
 local cHead = Instance.new("Frame", consoleWin)
 cHead.Size = UDim2.new(1,0,0,36); cHead.BackgroundColor3 = C.bar; cHead.BorderSizePixel = 0; cHead.ZIndex = 6; cHead.Active = true
@@ -370,15 +434,10 @@ cDev.MouseButton1Click:Connect(function()
 	if not ok then setStatus("Could not open Dev Console") end
 end)
 
-local galaxyStartTime = tick()
-RunService.RenderStepped:Connect(function()
-	local elapsed = (tick() - galaxyStartTime) / 8
-	local percent = (math.sin(elapsed * math.pi * 2) + 1) / 2
-	local mainCol = getLerpedColor(galaxyColors, percent)
-	local consCol = getLerpedColor(contrastColors, percent)
-	
-	if mainStroke then mainStroke.Color = mainCol end
-	if consoleStroke then consoleStroke.Color = consCol end
+bind(RunService.RenderStepped, function()
+	local rot = (tick() * 60) % 360
+	mainGrad.Rotation = rot
+	consoleGrad.Rotation = (360 - rot) % 360
 end)
 
 local function runCurrent()
@@ -393,7 +452,7 @@ local function runCurrent()
 end
 runBtn.MouseButton1Click:Connect(runCurrent)
 
-UIS.InputBegan:Connect(function(inp, processed)
+bind(UIS.InputBegan, function(inp, processed)
 	if processed then return end
 	if inp.KeyCode == Enum.KeyCode.Return and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
 		runCurrent()
@@ -404,7 +463,7 @@ local function tabPath(id) return FOLDER.."/tab_"..id..".lua" end
 local function saveIndex()
 	if not HAS_FS then return end
 	local names = {}
-	for _, t in ipairs(tabs) do names[#names+1] = t.id..":"..t.name end
+	for _, t in ipairs(tabs) do names[#names+1] = t.id..":"..t.name..":"..(t.fav and "1" or "0") end
 	pcall(writefile, FOLDER.."/_index.txt", table.concat(names, "\n"))
 end
 local function saveTab(t)
@@ -419,7 +478,16 @@ box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
 	if box.CursorPosition ~= -1 then lastCursor = box.CursorPosition end
 end)
 
+local pendingTap = nil
+box.InputBegan:Connect(function(inp)
+	if not focused and isPress(inp) then
+		pendingTap = { p = Vector2.new(inp.Position.X, inp.Position.Y), t = tick() }
+	end
+end)
+
 local renderTabs
+local switchTo
+
 local modalBlocker = Instance.new("TextButton")
 modalBlocker.Size = UDim2.new(1,0,1,0); modalBlocker.Position = UDim2.new(0,0,0,0)
 modalBlocker.BackgroundTransparency = 1; modalBlocker.Text = ""; modalBlocker.AutoButtonColor = false
@@ -487,19 +555,55 @@ cfYes.AnchorPoint = Vector2.new(1,1); cfYes.Position = UDim2.new(0.5,-6,1,-10); 
 local cfNo = mkBtn("No", 90, Color3.fromRGB(90,90,90), confirmFrame)
 cfNo.AnchorPoint = Vector2.new(0,1); cfNo.Position = UDim2.new(0.5,6,1,-10); cfNo.ZIndex = 32; cfNo.Size = UDim2.new(0,90,0,30)
 
-local function openConfirm()
-	local t = tabs[current]; local name = t and t.name or "this tab"
-	cfText.Text = 'Are You Sure To Clear "'..name..'" ?'
+local confirmAction = nil
+
+local function openConfirm(text, action)
+	cfText.Text = text
+	confirmAction = action
 	modalBlocker.ZIndex = 29; modalBlocker.Visible = true; confirmFrame.Visible = true
 	confirmFrame.Size = UDim2.new(0.7,0,0,100)
 	tween(confirmFrame, 0.25, {Size = UDim2.new(0.8,0,0,120)}, Enum.EasingStyle.Back)
 end
-local function closeConfirm() confirmFrame.Visible = false; modalBlocker.Visible = false end
-cfYes.MouseButton1Click:Connect(function() box.Text = ""; closeConfirm() end)
-cfNo.MouseButton1Click:Connect(closeConfirm)
-clearBtn.MouseButton1Click:Connect(openConfirm)
 
-local function switchTo(i, animate)
+local function closeConfirm()
+	confirmFrame.Visible = false; modalBlocker.Visible = false
+	confirmAction = nil
+end
+
+cfYes.MouseButton1Click:Connect(function()
+	local act = confirmAction
+	closeConfirm()
+	if act then act() end
+end)
+cfNo.MouseButton1Click:Connect(closeConfirm)
+
+clearBtn.MouseButton1Click:Connect(function()
+	local t = tabs[current]; local name = t and t.name or "this tab"
+	openConfirm('Are You Sure To Clear "'..name..'" ?', function()
+		box.Text = ""
+	end)
+end)
+
+delAllBtn.MouseButton1Click:Connect(function()
+	openConfirm('Are You Sure To Delete All Tabs?\n(Favorites will be kept)', function()
+		local toKeep = {}
+		for _, t in ipairs(tabs) do
+			if t.fav then table.insert(toKeep, t)
+			elseif HAS_FS and delfile then pcall(delfile, tabPath(t.id)) end
+		end
+		if #toKeep == 0 then
+			nextId += 1
+			table.insert(toKeep, {id = nextId, name = "Script 1", code = "", fav = false})
+		end
+		tabs = toKeep
+		saveIndex()
+		saveTab(tabs[1])
+		switchTo(1, false)
+		setStatus("Deleted non-favorite tabs")
+	end)
+end)
+
+function switchTo(i, animate)
 	current = math.clamp(i, 1, #tabs); lastCursor = nil; box.Text = tabs[current].code
 	renderTabs(animate and current or nil)
 	if animate then
@@ -510,15 +614,50 @@ end
 
 function renderTabs(animIndex)
 	for _, c in ipairs(tabBar:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+	local lowSearch = searchText:lower()
 	for i, t in ipairs(tabs) do
+		if lowSearch ~= "" and not t.name:lower():find(lowSearch, 1, true) then continue end
+		local showX = (not t.fav) and #tabs > 1
+		local w = showX and 116 or 96
 		local f = Instance.new("Frame")
-		f.Size = UDim2.new(0,100,1,0); f.BorderSizePixel = 0
+		f.Size = UDim2.new(0,w,1,0); f.BorderSizePixel = 0
 		f.BackgroundColor3 = (i == current) and C.tabOn or C.tab
 		f.LayoutOrder = i; f.ClipsDescendants = true; f.Parent = tabBar
+
 		local b = Instance.new("TextButton", f)
 		b.Size = UDim2.new(0,76,1,0); b.BackgroundTransparency = 1
-		b.Text = t.name; b.TextColor3 = C.text; b.Font = Enum.Font.Gotham
+		b.Text = t.name; b.TextColor3 = t.fav and C.fav or C.text; b.Font = Enum.Font.Gotham
 		b.TextSize = 13; b.TextTruncate = Enum.TextTruncate.AtEnd
+
+		local favBtn = Instance.new("TextButton", f)
+		favBtn.Size = UDim2.new(0,20,1,0); favBtn.Position = UDim2.new(0,76,0,0)
+		favBtn.BackgroundTransparency = 1; favBtn.Text = "★"; favBtn.TextColor3 = t.fav and C.fav or Color3.fromRGB(90,90,90)
+		favBtn.Font = Enum.Font.GothamBold; favBtn.TextSize = 14
+		favBtn.MouseButton1Click:Connect(function()
+			t.fav = not t.fav
+			saveIndex()
+			renderTabs()
+		end)
+
+		if showX then
+			local x = Instance.new("TextButton", f)
+			x.Size = UDim2.new(0,20,1,0); x.Position = UDim2.new(0,96,0,0)
+			x.BackgroundTransparency = 1; x.Text = "x"; x.TextColor3 = Color3.fromRGB(180,180,180)
+			x.Font = Enum.Font.GothamBold; x.TextSize = 12
+			x.MouseButton1Click:Connect(function()
+				openConfirm('Are You Sure To Delete "'..t.name..'" ?', function()
+					local realIndex = table.find(tabs, t)
+					if not realIndex or #tabs <= 1 then return end
+					if HAS_FS and delfile then pcall(delfile, tabPath(t.id)) end
+					table.remove(tabs, realIndex)
+					saveIndex()
+					if current > realIndex then current -= 1
+					elseif current == realIndex then current = math.clamp(current, 1, #tabs) end
+					switchTo(current, true)
+				end)
+			end)
+		end
+
 		local holdId, long = 0, false
 		b.InputBegan:Connect(function(inp)
 			if isPress(inp) then
@@ -529,21 +668,13 @@ function renderTabs(animIndex)
 		b.InputEnded:Connect(function(inp) if isPress(inp) then holdId += 1 end end)
 		b.MouseButton1Click:Connect(function()
 			if long then long = false return end
-			if i ~= current then switchTo(i, true) end
+			local realIndex = table.find(tabs, t)
+			if realIndex and realIndex ~= current then switchTo(realIndex, true) end
 		end)
-		local x = Instance.new("TextButton", f)
-		x.Size = UDim2.new(0,24,1,0); x.Position = UDim2.new(0,76,0,0)
-		x.BackgroundTransparency = 1; x.Text = "x"; x.TextColor3 = Color3.fromRGB(180,180,180)
-		x.Font = Enum.Font.GothamBold; x.TextSize = 12
-		x.MouseButton1Click:Connect(function()
-			if #tabs <= 1 then tabs[1].code = ""; box.Text = ""; saveTab(tabs[1]); return end
-			if HAS_FS and delfile then pcall(delfile, tabPath(t.id)) end
-			table.remove(tabs, i); saveIndex()
-			switchTo(math.min(current > i and current - 1 or current, #tabs), true)
-		end)
+
 		if animIndex == i then
 			f.Size = UDim2.new(0,0,1,0)
-			tween(f, 0.3, {Size = UDim2.new(0,100,1,0)}, Enum.EasingStyle.Back)
+			tween(f, 0.3, {Size = UDim2.new(0,w,1,0)}, Enum.EasingStyle.Back)
 		end
 	end
 	local add = Instance.new("TextButton")
@@ -560,41 +691,83 @@ function renderTabs(animIndex)
 		local maxN = 0
 		for n in pairs(used) do maxN = math.max(maxN, n) end
 		local num = maxN > 0 and maxN + 1 or 1
-		tabs[#tabs+1] = {id = nextId, name = "Script "..num, code = ""}
+		tabs[#tabs+1] = {id = nextId, name = "Script "..num, code = "", fav = false}
 		saveIndex(); saveTab(tabs[#tabs]); switchTo(#tabs, true)
 		task.delay(0.35, function() tabBar.CanvasPosition = Vector2.new(math.huge, 0) end)
 	end)
 end
 
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	searchText = searchBox.Text
+	renderTabs()
+end)
+
 if HAS_FS and isfile(FOLDER.."/_index.txt") then
 	local ok, data = pcall(readfile, FOLDER.."/_index.txt")
 	if ok and data then
 		for line in data:gmatch("[^\n]+") do
-			local id, name = line:match("^(%d+):(.+)$")
+			local id, name, fav = line:match("^(%d+):(.+):(%d)$")
+			if not id then
+				id, name = line:match("^(%d+):(.+)$")
+				fav = "0"
+			end
 			if id and isfile(tabPath(id)) then
 				local ok2, code = pcall(readfile, tabPath(id))
-				tabs[#tabs+1] = {id = tonumber(id), name = name, code = ok2 and code or ""}
+				tabs[#tabs+1] = {id = tonumber(id), name = name, code = ok2 and code or "", fav = fav == "1"}
 				nextId = math.max(nextId, tonumber(id))
 			end
 		end
 	end
 end
-if #tabs == 0 then tabs[1] = {id = 1, name = "Script 1", code = ""} end
+if #tabs == 0 then tabs[1] = {id = 1, name = "Script 1", code = "", fav = false} end
 
 local saveToken = 0
+local lastText = ""
+local applying = false
 box:GetPropertyChangedSignal("Text"):Connect(function()
-	local ok, res = pcall(highlight, box.Text)
+	local new = box.Text
+	if not applying and focused and #new == #lastText + 1 then
+		local i = 1
+		local m = math.min(#new, #lastText)
+		while i <= m and new:byte(i) == lastText:byte(i) do i += 1 end
+		if new:sub(i, i) == "\n" and new:sub(1, i - 1) .. new:sub(i + 1) == lastText then
+			local ind = indentBefore(new, i)
+			if ind ~= "" then
+				applying = true
+				box.Text = new:sub(1, i) .. ind .. new:sub(i + 1)
+				box.CursorPosition = i + 1 + #ind
+				applying = false
+				return
+			end
+		end
+	end
+	lastText = new
+	local ok, res = pcall(highlight, new)
 	if ok then view.Text = res end
 	applyMode()
 	local t = tabs[current]
 	if t then
-		t.code = box.Text; saveToken += 1
+		t.code = new; saveToken += 1
 		local my = saveToken
 		task.delay(1, function() if my == saveToken then saveTab(t) end end)
 	end
 end)
 
-box.Focused:Connect(function() focused = true; applyMode() end)
+box.Focused:Connect(function()
+	focused = true
+	applyMode()
+	local tap = pendingTap
+	pendingTap = nil
+	if tap and tick() - tap.t < 1 then
+		local p = posFromPoint(tap.p)
+		task.delay(0.05, function()
+			if focused then
+				box.CursorPosition = p
+				lastCursor = p
+			end
+		end)
+	end
+end)
 box.FocusLost:Connect(function()
 	focused = false
 	local ok, res = pcall(highlight, box.Text)
@@ -603,11 +776,14 @@ box.FocusLost:Connect(function()
 end)
 
 lineBtn.MouseButton1Click:Connect(function()
+	pendingTap = nil
 	local txt = box.Text
 	local pos = math.clamp(lastCursor or (#txt + 1), 1, #txt + 1)
-	box.Text = txt:sub(1, pos - 1) .. "\n" .. txt:sub(pos)
+	local ind = indentBefore(txt, pos)
+	box.Text = txt:sub(1, pos - 1) .. "\n" .. ind .. txt:sub(pos)
 	box:CaptureFocus()
-	task.delay(0.05, function() box.CursorPosition = pos + 1; lastCursor = pos + 1 end)
+	local newPos = pos + 1 + #ind
+	task.delay(0.05, function() box.CursorPosition = newPos; lastCursor = newPos end)
 	lineBtn.Size = UDim2.new(0,62,0,24)
 	tween(lineBtn, 0.2, {Size = UDim2.new(0,70,0,28)}, Enum.EasingStyle.Back)
 end)
@@ -692,7 +868,10 @@ closeBtn.MouseButton1Click:Connect(function()
 		tween(consoleWin, 0.25, {Position = consoleHidden()}, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function() consoleWin.Visible = false end)
 		task.wait(0.15)
 	end
-	tween(main, 0.3, {Position = hiddenPos()}, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function() gui:Destroy() end)
+	tween(main, 0.3, {Position = hiddenPos()}, Enum.EasingStyle.Quint, Enum.EasingDirection.In).Completed:Connect(function()
+		for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+		gui:Destroy()
+	end)
 end)
 
 local function makeDraggable(handle, target, onMove)
@@ -702,9 +881,9 @@ local function makeDraggable(handle, target, onMove)
 		if isPress(i) then dragging = true; startMouse = UIS:GetMouseLocation(); startPos = target.Position end
 	end)
 	handle.InputEnded:Connect(function(i) if isPress(i) then dragging = false end end)
-	UIS.InputEnded:Connect(function(i) if isPress(i) then dragging = false end end)
-	UIS.TouchEnded:Connect(function() dragging = false end)
-	RunService.RenderStepped:Connect(function()
+	bind(UIS.InputEnded, function(i) if isPress(i) then dragging = false end end)
+	bind(UIS.TouchEnded, function() dragging = false end)
+	bind(RunService.RenderStepped, function()
 		if not dragging then return end
 		local m = UIS:GetMouseLocation(); local d = m - startMouse
 		if d.Magnitude < 0.5 then return end
@@ -720,9 +899,9 @@ local function makeResizable(handle, target, minW, minH)
 		if isPress(i) then resizing = true; startMouse = UIS:GetMouseLocation(); local abs = target.AbsoluteSize; startW, startH = abs.X, abs.Y end
 	end)
 	handle.InputEnded:Connect(function(i) if isPress(i) then resizing = false end end)
-	UIS.InputEnded:Connect(function(i) if isPress(i) then resizing = false end end)
-	UIS.TouchEnded:Connect(function() resizing = false end)
-	RunService.RenderStepped:Connect(function()
+	bind(UIS.InputEnded, function(i) if isPress(i) then resizing = false end end)
+	bind(UIS.TouchEnded, function() resizing = false end)
+	bind(RunService.RenderStepped, function()
 		if not resizing then return end
 		local m = UIS:GetMouseLocation(); local d = m - startMouse
 		local newW = math.max(minW, math.floor(startW + d.X + 0.5))

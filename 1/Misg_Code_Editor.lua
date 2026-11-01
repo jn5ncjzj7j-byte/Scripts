@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local TextService = game:GetService("TextService")
 local LogService = game:GetService("LogService")
 local StarterGui = game:GetService("StarterGui")
 local HttpService = game:GetService("HttpService")
@@ -108,17 +107,30 @@ gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
 gui.DisplayOrder = 999; gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = parent
 
-local function rainbow(off)
+local function loopSequence(colors)
 	local kps = {}
-	for i = 0, 8 do
-		kps[#kps+1] = ColorSequenceKeypoint.new(i/8, Color3.fromHSV((i/8 + off) % 1, 0.65, 1))
+	local n = #colors
+	for i = 1, n do
+		kps[#kps+1] = ColorSequenceKeypoint.new((i-1)/n, colors[i])
 	end
+	kps[#kps+1] = ColorSequenceKeypoint.new(1, colors[1])
 	return ColorSequence.new(kps)
 end
 
+local mainPalette = {}
+for i = 0, 7 do
+	mainPalette[#mainPalette+1] = Color3.fromHSV(i/8, 0.75, 1)
+end
+local consolePalette = {
+	Color3.fromRGB(0,240,255),
+	Color3.fromRGB(70,110,255),
+	Color3.fromRGB(180,70,255),
+	Color3.fromRGB(255,60,170),
+	Color3.fromRGB(70,110,255),
+}
+
 local shownPos = UDim2.new(0.04,0,0.15,0)
 local function hiddenPos() return UDim2.new(shownPos.X.Scale, shownPos.X.Offset, -1, 0) end
-
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.new(0.92,0,0.7,0); main.Position = hiddenPos()
 main.BackgroundColor3 = C.bg; main.BorderSizePixel = 0
@@ -130,9 +142,9 @@ local mainStroke = Instance.new("UIStroke", main)
 mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 mainStroke.LineJoinMode = Enum.LineJoinMode.Round
 mainStroke.Color = Color3.new(1,1,1)
-mainStroke.Thickness = 2
+mainStroke.Thickness = 2.5
 local mainGrad = Instance.new("UIGradient", mainStroke)
-mainGrad.Color = rainbow(0)
+mainGrad.Color = loopSequence(mainPalette)
 
 local top = Instance.new("Frame", main)
 top.Size = UDim2.new(1,0,0,36); top.BackgroundColor3 = C.bar; top.BorderSizePixel = 0
@@ -229,57 +241,10 @@ local view = Instance.new("TextLabel", scroll)
 setupText(view); view.RichText = true; view.Text = ""; view.TextColor3 = C.text; view.ZIndex = 1
 
 local box = Instance.new("TextBox", scroll)
-setupText(box)
+setupText(box); box.AutomaticSize = Enum.AutomaticSize.None; box.Size = UDim2.new(1,-6,1,0)
 box.MultiLine = true; box.ClearTextOnFocus = false; box.TextEditable = true
 box.TextColor3 = C.text; box.Text = ""; box.TextTransparency = 0; box.ZIndex = 2
 box.PlaceholderText = "-- type code here (Ctrl+Enter to run)"; box.PlaceholderColor3 = Color3.fromRGB(110,110,110)
-
-local function fitText()
-	local s = scroll.AbsoluteSize
-	local sz = UDim2.fromOffset(math.max(s.X - 6, 10), math.max(s.Y, 10))
-	view.Size = sz
-	box.Size = sz
-end
-scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitText)
-fitText()
-
-local charW, charH = 9, 16
-pcall(function()
-	local s = TextService:GetTextSize("A", 16, Enum.Font.Code, Vector2.new(10000, 10000))
-	if s.X > 0 and s.Y > 0 then charW, charH = s.X, s.Y end
-end)
-
-local function posFromPoint(pt)
-	local txt = box.Text
-	local x = pt.X - box.AbsolutePosition.X - 6
-	local y = pt.Y - box.AbsolutePosition.Y - 4
-	local lineIdx = math.max(0, math.floor(y / charH))
-	local idx = 1
-	local n = 0
-	while n < lineIdx do
-		local nl = txt:find("\n", idx, true)
-		if not nl then return #txt + 1 end
-		idx = nl + 1
-		n += 1
-	end
-	local nl = txt:find("\n", idx, true) or (#txt + 1)
-	local len = nl - idx
-	local col = math.clamp(math.floor(x / charW + 0.5), 0, len)
-	return idx + col
-end
-
-local function indentBefore(txt, upto)
-	local prefix = txt:sub(1, upto - 1)
-	local line = prefix:match("[^\n]*$") or ""
-	local ws = line:match("^[ \t]*") or ""
-	local trimmed = line:match("^%s*(.-)%s*$") or ""
-	local extra = ""
-	if trimmed:match("%f[%w_]then$") or trimmed:match("%f[%w_]do$") or trimmed:match("%f[%w_]else$")
-		or trimmed:match("%f[%w_]repeat$") or trimmed:match("function%s*[%w_%.:]*%s*%b()$") or trimmed:match("{$") then
-		extra = "    "
-	end
-	return ws .. extra
-end
 
 local function applyMode()
 	if colorMode and not focused then view.Visible = true; box.TextTransparency = 1
@@ -314,7 +279,6 @@ local consoleBtn = mkBtn("Console", 62, C.btn, botRow); consoleBtn.LayoutOrder =
 local colorBtn = mkBtn("Color: ON", 74, Color3.fromRGB(190,120,30), botRow); colorBtn.LayoutOrder = 2
 local lineBtn = mkBtn("+ Line", 70, Color3.fromRGB(40,150,90), botRow); lineBtn.LayoutOrder = 3
 lineBtn.Size = UDim2.new(0,70,0,28)
-
 colorBtn.MouseButton1Click:Connect(function()
 	colorMode = not colorMode
 	colorBtn.Text = colorMode and "Color: ON" or "Color: OFF"
@@ -335,9 +299,9 @@ local consoleStroke = Instance.new("UIStroke", consoleWin)
 consoleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 consoleStroke.LineJoinMode = Enum.LineJoinMode.Round
 consoleStroke.Color = Color3.new(1,1,1)
-consoleStroke.Thickness = 2
+consoleStroke.Thickness = 2.5
 local consoleGrad = Instance.new("UIGradient", consoleStroke)
-consoleGrad.Color = rainbow(0.5)
+consoleGrad.Color = loopSequence(consolePalette)
 
 local cHead = Instance.new("Frame", consoleWin)
 cHead.Size = UDim2.new(1,0,0,36); cHead.BackgroundColor3 = C.bar; cHead.BorderSizePixel = 0; cHead.ZIndex = 6; cHead.Active = true
@@ -435,9 +399,9 @@ cDev.MouseButton1Click:Connect(function()
 end)
 
 bind(RunService.RenderStepped, function()
-	local rot = (tick() * 60) % 360
-	mainGrad.Rotation = rot
-	consoleGrad.Rotation = (360 - rot) % 360
+	local t = tick()
+	mainGrad.Rotation = (t * 70) % 360
+	consoleGrad.Rotation = (360 - (t * 50) % 360) % 360
 end)
 
 local function runCurrent()
@@ -451,7 +415,6 @@ local function runCurrent()
 	pcall(fn)
 end
 runBtn.MouseButton1Click:Connect(runCurrent)
-
 bind(UIS.InputBegan, function(inp, processed)
 	if processed then return end
 	if inp.KeyCode == Enum.KeyCode.Return and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
@@ -474,14 +437,15 @@ local function saveTab(t)
 end
 
 local lastCursor = nil
+local prevCursor = nil
+local cursorTime = 0
 box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
-	if box.CursorPosition ~= -1 then lastCursor = box.CursorPosition end
-end)
-
-local pendingTap = nil
-box.InputBegan:Connect(function(inp)
-	if not focused and isPress(inp) then
-		pendingTap = { p = Vector2.new(inp.Position.X, inp.Position.Y), t = tick() }
+	local c = box.CursorPosition
+	if c == -1 or not focused then return end
+	if c ~= lastCursor then
+		prevCursor = lastCursor
+		lastCursor = c
+		cursorTime = tick()
 	end
 end)
 
@@ -556,7 +520,6 @@ local cfNo = mkBtn("No", 90, Color3.fromRGB(90,90,90), confirmFrame)
 cfNo.AnchorPoint = Vector2.new(0,1); cfNo.Position = UDim2.new(0.5,6,1,-10); cfNo.ZIndex = 32; cfNo.Size = UDim2.new(0,90,0,30)
 
 local confirmAction = nil
-
 local function openConfirm(text, action)
 	cfText.Text = text
 	confirmAction = action
@@ -564,12 +527,10 @@ local function openConfirm(text, action)
 	confirmFrame.Size = UDim2.new(0.7,0,0,100)
 	tween(confirmFrame, 0.25, {Size = UDim2.new(0.8,0,0,120)}, Enum.EasingStyle.Back)
 end
-
 local function closeConfirm()
 	confirmFrame.Visible = false; modalBlocker.Visible = false
 	confirmAction = nil
 end
-
 cfYes.MouseButton1Click:Connect(function()
 	local act = confirmAction
 	closeConfirm()
@@ -583,7 +544,6 @@ clearBtn.MouseButton1Click:Connect(function()
 		box.Text = ""
 	end)
 end)
-
 delAllBtn.MouseButton1Click:Connect(function()
 	openConfirm('Are You Sure To Delete All Tabs?\n(Favorites will be kept)', function()
 		local toKeep = {}
@@ -597,14 +557,13 @@ delAllBtn.MouseButton1Click:Connect(function()
 		end
 		tabs = toKeep
 		saveIndex()
-		saveTab(tabs[1])
 		switchTo(1, false)
 		setStatus("Deleted non-favorite tabs")
 	end)
 end)
 
 function switchTo(i, animate)
-	current = math.clamp(i, 1, #tabs); lastCursor = nil; box.Text = tabs[current].code
+	current = math.clamp(i, 1, #tabs); lastCursor = nil; prevCursor = nil; box.Text = tabs[current].code
 	renderTabs(animate and current or nil)
 	if animate then
 		scroll.Position = UDim2.new(0,0,0,EDITOR_POS.Y.Offset + 24)
@@ -617,7 +576,7 @@ function renderTabs(animIndex)
 	local lowSearch = searchText:lower()
 	for i, t in ipairs(tabs) do
 		if lowSearch ~= "" and not t.name:lower():find(lowSearch, 1, true) then continue end
-		local showX = (not t.fav) and #tabs > 1
+		local showX = #tabs > 1 and not t.fav
 		local w = showX and 116 or 96
 		local f = Instance.new("Frame")
 		f.Size = UDim2.new(0,w,1,0); f.BorderSizePixel = 0
@@ -647,7 +606,8 @@ function renderTabs(animIndex)
 			x.MouseButton1Click:Connect(function()
 				openConfirm('Are You Sure To Delete "'..t.name..'" ?', function()
 					local realIndex = table.find(tabs, t)
-					if not realIndex or #tabs <= 1 then return end
+					if not realIndex then return end
+					if #tabs <= 1 then return end
 					if HAS_FS and delfile then pcall(delfile, tabPath(t.id)) end
 					table.remove(tabs, realIndex)
 					saveIndex()
@@ -727,15 +687,15 @@ local applying = false
 box:GetPropertyChangedSignal("Text"):Connect(function()
 	local new = box.Text
 	if not applying and focused and #new == #lastText + 1 then
-		local i = 1
-		local m = math.min(#new, #lastText)
-		while i <= m and new:byte(i) == lastText:byte(i) do i += 1 end
-		if new:sub(i, i) == "\n" and new:sub(1, i - 1) .. new:sub(i + 1) == lastText then
-			local ind = indentBefore(new, i)
+		local cp = box.CursorPosition
+		if cp ~= -1 and new:sub(cp - 1, cp - 1) == "\n" and new:sub(1, cp - 2) .. new:sub(cp) == lastText then
+			local line = new:sub(1, cp - 2):match("[^\n]*$") or ""
+			local ind = line:match("^[ \t]*") or ""
 			if ind ~= "" then
 				applying = true
-				box.Text = new:sub(1, i) .. ind .. new:sub(i + 1)
-				box.CursorPosition = i + 1 + #ind
+				box.Text = new:sub(1, cp - 1) .. ind .. new:sub(cp)
+				box.CursorPosition = cp + #ind
+				lastCursor = cp + #ind
 				applying = false
 				return
 			end
@@ -753,37 +713,42 @@ box:GetPropertyChangedSignal("Text"):Connect(function()
 	end
 end)
 
-box.Focused:Connect(function()
-	focused = true
-	applyMode()
-	local tap = pendingTap
-	pendingTap = nil
-	if tap and tick() - tap.t < 1 then
-		local p = posFromPoint(tap.p)
-		task.delay(0.05, function()
-			if focused then
-				box.CursorPosition = p
-				lastCursor = p
-			end
-		end)
-	end
-end)
+box.Focused:Connect(function() focused = true; applyMode() end)
 box.FocusLost:Connect(function()
+	if prevCursor and lastCursor == #box.Text + 1 and prevCursor < lastCursor - 1 and tick() - cursorTime < 0.25 then
+		lastCursor = prevCursor
+	end
 	focused = false
 	local ok, res = pcall(highlight, box.Text)
 	if ok then view.Text = res end
 	applyMode()
 end)
 
+local function getIndentBefore(text, pos)
+	local before = text:sub(1, pos - 1)
+	local lineStart = before:match(".*()\n") or 0
+	local currentLine = text:sub(lineStart + 1, pos - 1)
+	local spaces = currentLine:match("^([ \t]*)") or ""
+	return spaces
+end
+
+local function insertWithIndent(text, pos, indent)
+	local before = text:sub(1, pos - 1)
+	local after = text:sub(pos)
+	return before .. "\n" .. indent .. after, #before + 1 + #indent + 1
+end
+
 lineBtn.MouseButton1Click:Connect(function()
-	pendingTap = nil
 	local txt = box.Text
 	local pos = math.clamp(lastCursor or (#txt + 1), 1, #txt + 1)
-	local ind = indentBefore(txt, pos)
-	box.Text = txt:sub(1, pos - 1) .. "\n" .. ind .. txt:sub(pos)
+	local indent = getIndentBefore(txt, pos)
+	local newText, newPos = insertWithIndent(txt, pos, indent)
+	box.Text = newText
 	box:CaptureFocus()
-	local newPos = pos + 1 + #ind
-	task.delay(0.05, function() box.CursorPosition = newPos; lastCursor = newPos end)
+	task.delay(0.05, function()
+		box.CursorPosition = newPos
+		lastCursor = newPos
+	end)
 	lineBtn.Size = UDim2.new(0,62,0,24)
 	tween(lineBtn, 0.2, {Size = UDim2.new(0,70,0,28)}, Enum.EasingStyle.Back)
 end)
@@ -874,38 +839,48 @@ closeBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
-local function makeDraggable(handle, target, onMove)
-	local dragging = false
-	local startMouse, startPos
+local function trackTouch(handle, onStart, onMove)
+	local active, startIn
 	handle.InputBegan:Connect(function(i)
-		if isPress(i) then dragging = true; startMouse = UIS:GetMouseLocation(); startPos = target.Position end
+		if active or not isPress(i) then return end
+		active = i
+		startIn = i.Position
+		onStart()
 	end)
-	handle.InputEnded:Connect(function(i) if isPress(i) then dragging = false end end)
-	bind(UIS.InputEnded, function(i) if isPress(i) then dragging = false end end)
-	bind(UIS.TouchEnded, function() dragging = false end)
-	bind(RunService.RenderStepped, function()
-		if not dragging then return end
-		local m = UIS:GetMouseLocation(); local d = m - startMouse
-		if d.Magnitude < 0.5 then return end
-		target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+	bind(UIS.InputChanged, function(i)
+		if not active then return end
+		if active.UserInputState == Enum.UserInputState.End then active = nil return end
+		local same = i == active or (active.UserInputType == Enum.UserInputType.MouseButton1 and i.UserInputType == Enum.UserInputType.MouseMovement)
+		if not same then return end
+		local d = i.Position - startIn
+		onMove(d.X, d.Y)
+	end)
+	bind(UIS.InputEnded, function(i)
+		if not active then return end
+		if i == active or (active.UserInputType == Enum.UserInputType.MouseButton1 and i.UserInputType == Enum.UserInputType.MouseButton1) then
+			active = nil
+		end
+	end)
+end
+
+local function makeDraggable(handle, target, onMove)
+	local startPos
+	trackTouch(handle, function()
+		startPos = target.Position
+	end, function(dx, dy)
+		target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + dx, startPos.Y.Scale, startPos.Y.Offset + dy)
 		if onMove then onMove(target.Position) end
 	end)
 end
 
 local function makeResizable(handle, target, minW, minH)
-	local resizing = false
-	local startMouse, startW, startH
-	handle.InputBegan:Connect(function(i)
-		if isPress(i) then resizing = true; startMouse = UIS:GetMouseLocation(); local abs = target.AbsoluteSize; startW, startH = abs.X, abs.Y end
-	end)
-	handle.InputEnded:Connect(function(i) if isPress(i) then resizing = false end end)
-	bind(UIS.InputEnded, function(i) if isPress(i) then resizing = false end end)
-	bind(UIS.TouchEnded, function() resizing = false end)
-	bind(RunService.RenderStepped, function()
-		if not resizing then return end
-		local m = UIS:GetMouseLocation(); local d = m - startMouse
-		local newW = math.max(minW, math.floor(startW + d.X + 0.5))
-		local newH = math.max(minH, math.floor(startH + d.Y + 0.5))
+	local startW, startH
+	trackTouch(handle, function()
+		local abs = target.AbsoluteSize
+		startW, startH = abs.X, abs.Y
+	end, function(dx, dy)
+		local newW = math.max(minW, math.floor(startW + dx + 0.5))
+		local newH = math.max(minH, math.floor(startH + dy + 0.5))
 		target.Size = UDim2.fromOffset(newW, newH)
 	end)
 end
